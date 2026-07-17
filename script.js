@@ -4,7 +4,8 @@
 const API_URL = "https://watt-casino-api-production.up.railway.app";
 const TOKEN_KEY = "wattCasinoSessionToken";
 const LEADERBOARD_LIMIT = 25;
-const DEAL_DELAY = 210;
+const DEAL_STAGGER = 95;
+const CARD_ANIMATION_MS = 240;
 
 const ui = {
   authScreen: document.querySelector("#auth-screen"),
@@ -209,6 +210,7 @@ function setMessage(kicker, text, tone = "neutral") {
 function cardElement(card, animate) {
   const element = document.createElement("div");
   element.className = `card${animate ? " dealt" : ""}${card.hidden ? " card--hidden" : ""}`;
+  element.dataset.cardSignature = card.hidden ? "hidden" : `${card.rank}:${card.suit}`;
   if (card.hidden) { element.setAttribute("aria-label", "Verdeckte Karte"); return element; }
   const red = card.suit === "♥" || card.suit === "♦";
   if (red) element.classList.add("red");
@@ -217,12 +219,54 @@ function cardElement(card, animate) {
   return element;
 }
 
-async function renderCards(target, cards, animate) {
-  target.replaceChildren();
-  for (const card of cards) {
-    target.append(cardElement(card, animate));
-    if (animate) await new Promise((resolve) => setTimeout(resolve, DEAL_DELAY));
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function dealInitialCards(playerCards, dealerCards) {
+  ui.playerCards.replaceChildren();
+  ui.dealerCards.replaceChildren();
+  const sequence = [
+    [ui.playerCards, playerCards[0]],
+    [ui.dealerCards, dealerCards[0]],
+    [ui.playerCards, playerCards[1]],
+    [ui.dealerCards, dealerCards[1]]
+  ].filter(([, card]) => card);
+
+  for (let index = 0; index < sequence.length; index += 1) {
+    const [target, card] = sequence[index];
+    target.append(cardElement(card, true));
+    if (index < sequence.length - 1) await wait(DEAL_STAGGER);
   }
+  if (sequence.length) await wait(CARD_ANIMATION_MS);
+}
+
+async function reconcileCards(target, cards, animate) {
+  let animatedChanges = 0;
+
+  for (let index = 0; index < cards.length; index += 1) {
+    const card = cards[index];
+    const signature = card.hidden ? "hidden" : `${card.rank}:${card.suit}`;
+    const existing = target.children[index];
+
+    if (existing?.dataset.cardSignature === signature) continue;
+
+    const replacement = cardElement(card, animate && !existing);
+    if (existing) {
+      replacement.classList.add("card--revealed");
+      existing.replaceWith(replacement);
+    } else {
+      target.append(replacement);
+    }
+    animatedChanges += animate ? 1 : 0;
+    if (animate && index < cards.length - 1) await wait(DEAL_STAGGER);
+  }
+
+  while (target.children.length > cards.length) {
+    target.lastElementChild.remove();
+  }
+
+  if (animatedChanges) await wait(CARD_ANIMATION_MS);
 }
 
 async function renderGame(animate = false) {
@@ -239,8 +283,13 @@ async function renderGame(animate = false) {
 
   state.busy = animate;
   updateControls();
-  await renderCards(ui.playerCards, round.playerCards, animate);
-  await renderCards(ui.dealerCards, round.dealerCards, animate);
+  const isInitialDeal = animate && ui.playerCards.children.length === 0 && ui.dealerCards.children.length === 0;
+  if (isInitialDeal) {
+    await dealInitialCards(round.playerCards, round.dealerCards);
+  } else {
+    await reconcileCards(ui.playerCards, round.playerCards, animate);
+    await reconcileCards(ui.dealerCards, round.dealerCards, animate);
+  }
   ui.playerScore.textContent = round.playerValue;
   ui.dealerScore.textContent = round.dealerValue;
   state.busy = false;
