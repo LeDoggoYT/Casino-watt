@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Watt Casino – Verwaltung</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body class="admin-page">
+  <main class="admin-login" id="admin-login">
+    <section class="admin-login-card" aria-labelledby="admin-login-title">
+      <div class="auth-brand">
+        <span class="brand-mark" aria-hidden="true"><span>W</span></span>
+        <span class="brand-name">Watt <strong>Casino</strong></span>
+      </div>
+      <span class="admin-kicker">Interne Verwaltung</span>
+      <h1 id="admin-login-title">Admin-Zugang</h1>
+      <p>Dieser Bereich ist ausschließlich für die Spielerverwaltung vorgesehen.</p>
+      <form id="admin-login-form">
+        <label for="admin-password">Passwort</label>
+        <input id="admin-password" name="password" type="password" maxlength="128" autocomplete="current-password" required autofocus>
+        <p class="admin-form-message" id="admin-login-message" role="status" aria-live="polite"></p>
+        <button class="admin-primary" type="submit">Anmelden</button>
+      </form>
+    </section>
+  </main>
+
+  <div id="admin-app" hidden>
+    <header class="admin-header">
+      <div class="auth-brand">
+        <span class="brand-mark" aria-hidden="true"><span>W</span></span>
+        <span class="brand-name">Watt <strong>Casino</strong></span>
+      </div>
+      <span class="admin-title">Spielerverwaltung</span>
+      <button class="admin-logout" id="admin-logout" type="button">Abmelden</button>
+    </header>
+
+    <main class="admin-main">
+      <section class="admin-panel" aria-labelledby="players-title">
+        <header class="admin-panel-header">
+          <div>
+            <span class="admin-kicker">Konten und Spielgeld</span>
+            <h1 id="players-title">Spieler</h1>
+            <p>Änderungen werden serverseitig geprüft und protokolliert.</p>
+          </div>
+          <form class="admin-search" id="admin-search-form" role="search">
+            <label class="visually-hidden" for="admin-search">Spieler suchen</label>
+            <input id="admin-search" name="search" type="search" maxlength="20" placeholder="Benutzername suchen">
+            <button type="submit">Suchen</button>
+          </form>
+        </header>
+
+        <div class="admin-notice" id="admin-notice" role="status" aria-live="polite"></div>
+        <div class="admin-player-list" id="admin-player-list"></div>
+        <p class="admin-empty" id="admin-empty" hidden>Keine Spieler gefunden.</p>
+
+        <footer class="admin-pagination">
+          <button id="admin-prev" type="button">Zurück</button>
+          <span id="admin-page-label">Seite 1 von 1</span>
+          <button id="admin-next" type="button">Weiter</button>
+        </footer>
+      </section>
+    </main>
+  </div>
+
+  <script src="admin.js" defer></script>
+</body>
+</html>

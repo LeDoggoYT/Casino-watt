@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Watt Casino – kostenloses Blackjack mit virtuellem Spielgeld.">
+  <title>Watt Casino – Blackjack mit Spielgeld</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="auth-screen" id="auth-screen">
+    <section class="auth-card" aria-labelledby="auth-title">
+      <div class="auth-brand">
+        <span class="brand-mark" aria-hidden="true"><span>W</span></span>
+        <span class="brand-name">Watt <strong>Casino</strong></span>
+      </div>
+      <div class="auth-intro">
+        <span>Persönlicher Spieltisch</span>
+        <h1 id="auth-title">Willkommen am Tisch.</h1>
+        <p>Melden Sie sich an, um Ihren Kontostand, Ihre Runden und Statistiken sicher fortzuführen.</p>
+      </div>
+
+      <div class="auth-tabs" role="tablist" aria-label="Kontozugang">
+        <button class="auth-tab is-active" id="login-tab" type="button" role="tab" aria-selected="true" aria-controls="login-form">Anmelden</button>
+        <button class="auth-tab" id="register-tab" type="button" role="tab" aria-selected="false" aria-controls="register-form">Registrieren</button>
+      </div>
+
+      <form class="auth-form" id="login-form" autocomplete="on">
+        <label>
+          <span>Benutzername</span>
+          <input id="login-username" name="username" type="text" minlength="3" maxlength="20" autocomplete="username" required>
+        </label>
+        <label>
+          <span>Passwort</span>
+          <input id="login-password" name="password" type="password" minlength="8" maxlength="128" autocomplete="current-password" required>
+        </label>
+        <p class="form-message" id="login-message" role="status" aria-live="polite"></p>
+        <button class="auth-submit" type="submit"><span>Anmelden</span><span class="button-loader" aria-hidden="true"></span></button>
+      </form>
+
+      <form class="auth-form" id="register-form" autocomplete="on" hidden>
+        <label>
+          <span>Benutzername</span>
+          <input id="register-username" name="username" type="text" minlength="3" maxlength="20" pattern="[A-Za-z0-9_\-]+" autocomplete="username" required>
+          <small>3–20 Zeichen: Buchstaben, Zahlen, Unterstrich oder Bindestrich.</small>
+        </label>
+        <label>
+          <span>Passwort</span>
+          <input id="register-password" name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required>
+          <small>Mindestens 8 Zeichen.</small>
+        </label>
+        <p class="form-message" id="register-message" role="status" aria-live="polite"></p>
+        <button class="auth-submit" type="submit"><span>Konto erstellen</span><span class="button-loader" aria-hidden="true"></span></button>
+      </form>
+      <p class="auth-legal">Ausschließlich virtuelles Spielgeld. Keine Ein- oder Auszahlungen.</p>
+    </section>
+  </main>
+
+  <main class="suspended-screen" id="suspended-screen" hidden>
+    <section class="suspended-card" aria-labelledby="suspended-title">
+      <div class="auth-brand">
+        <span class="brand-mark" aria-hidden="true"><span>W</span></span>
+        <span class="brand-name">Watt <strong>Casino</strong></span>
+      </div>
+      <span class="section-kicker">Kontozugang eingeschränkt</span>
+      <h1 id="suspended-title">Dieses Konto wurde gesperrt.</h1>
+      <p>Begründung der Verwaltung:</p>
+      <strong class="suspension-reason-text" id="suspension-reason-text"></strong>
+      <button class="suspended-logout" id="suspended-logout" type="button">Abmelden</button>
+    </section>
+  </main>
+
+  <div id="casino-app" hidden>
+    <header class="site-header">
+      <a class="brand" href="#game" data-view-link="game" aria-label="Watt Casino – zum Spiel">
+        <span class="brand-mark" aria-hidden="true"><span>W</span></span>
+        <span class="brand-name">Watt <strong>Casino</strong></span>
+      </a>
+      <nav class="main-nav" aria-label="Hauptnavigation">
+        <button class="nav-link is-active" type="button" data-view="game">Blackjack</button>
+        <button class="nav-link" type="button" data-view="leaderboard">Leaderboard</button>
+      </nav>
+      <div class="header-account">
+        <span class="header-user" id="header-user"></span>
+        <button class="logout-button" id="logout" type="button">Abmelden</button>
+      </div>
+    </header>
+
+    <main id="game-view" class="app-view">
+      <div id="game" class="game-shell">
+        <section class="table-panel" aria-labelledby="game-title">
+          <h1 id="game-title" class="visually-hidden">Blackjack im Watt Casino</h1>
+          <div class="table-rail">
+            <div class="blackjack-table">
+              <div class="table-copy" aria-hidden="true">
+                <span>BLACKJACK</span>
+                <small>BLACKJACK ZAHLT 3 ZU 2 · DEALER HÄLT AB 17</small>
+              </div>
+              <section class="hand dealer-hand" aria-labelledby="dealer-label">
+                <div class="hand-heading">
+                  <h2 id="dealer-label">Dealer</h2>
+                  <span class="hand-score" id="dealer-score" aria-label="Punktestand des Dealers">–</span>
+                </div>
+                <div class="cards" id="dealer-cards" aria-live="polite"></div>
+              </section>
+              <div class="game-message" id="game-message" role="status" aria-live="polite">
+                <span class="message-kicker" id="message-kicker">Tisch wird vorbereitet</span>
+                <strong id="message-text">Verbindung zum Server wird hergestellt.</strong>
+              </div>
+              <section class="hand player-hand" aria-labelledby="player-label">
+                <div class="hand-heading">
+                  <h2 id="player-label">Ihre Hand</h2>
+                  <span class="hand-score" id="player-score" aria-label="Ihr Punktestand">–</span>
+                </div>
+                <div class="cards" id="player-cards" aria-live="polite"></div>
+              </section>
+              <div class="bet-spot" aria-hidden="true"><span>Watt</span><small>Einsatz</small></div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="control-panel" aria-label="Spielsteuerung">
+          <div class="account-strip">
+            <div class="account-item"><span>Kontostand</span><strong><span id="balance">–</span> <small>Chips</small></strong></div>
+            <div class="account-divider" aria-hidden="true"></div>
+            <div class="account-item account-item--bet"><span>Aktueller Einsatz</span><strong><span id="current-bet">0</span> <small>Chips</small></strong></div>
+          </div>
+          <div class="bet-controls" id="bet-controls">
+            <div class="control-heading"><h2>Einsatz wählen</h2><button id="clear-bet" class="text-button" type="button">Einsatz löschen</button></div>
+            <div class="chip-row" aria-label="Chips auswählen">
+              <button class="chip chip--5" type="button" data-bet="5" aria-label="5 Chips setzen"><span>5</span></button>
+              <button class="chip chip--10" type="button" data-bet="10" aria-label="10 Chips setzen"><span>10</span></button>
+              <button class="chip chip--25" type="button" data-bet="25" aria-label="25 Chips setzen"><span>25</span></button>
+              <button class="chip chip--50" type="button" data-bet="50" aria-label="50 Chips setzen"><span>50</span></button>
+              <button class="chip chip--100" type="button" data-bet="100" aria-label="100 Chips setzen"><span>100</span></button>
+              <button class="chip chip--500" type="button" data-bet="500" aria-label="500 Chips setzen"><span>500</span></button>
+              <button class="chip chip--all" type="button" data-bet="all" aria-label="Alle verfügbaren Chips setzen"><span>All in</span></button>
+            </div>
+          </div>
+          <div class="action-bar" aria-label="Spielaktionen">
+            <button class="action action--primary" id="deal" type="button" disabled>Geben</button>
+            <button class="action" id="hit" type="button" disabled>Karte</button>
+            <button class="action" id="stand" type="button" disabled>Halten</button>
+            <button class="action" id="double" type="button" disabled>Verdoppeln</button>
+            <button class="action action--new" id="new-round" type="button" disabled>Neue Runde</button>
+          </div>
+          <details class="rules">
+            <summary>Spielregeln <span aria-hidden="true"></span></summary>
+            <div class="rules-content">
+              <p>Ziel ist eine Hand näher an 21 als die des Dealers, ohne 21 zu überschreiten.</p>
+              <ul>
+                <li>Zahlenkarten zählen ihren Wert, Bilder 10 und Asse je nach Hand 1 oder 11.</li>
+                <li>Der Dealer zieht bis 16 und hält ab 17. Eine Karte bleibt bis zum Ende verdeckt.</li>
+                <li>Blackjack zahlt 3:2. Ein Gleichstand gibt den Einsatz zurück.</li>
+                <li>Verdoppeln ist nur mit zwei Karten und ausreichendem Guthaben möglich.</li>
+              </ul>
+              <p class="rules-note">Alle Karten, Ergebnisse und Auszahlungen werden auf dem Watt-Casino-Server berechnet.</p>
+            </div>
+          </details>
+        </aside>
+      </div>
+    </main>
+
+    <main id="leaderboard-view" class="app-view leaderboard-view" hidden>
+      <section class="leaderboard-panel" aria-labelledby="leaderboard-title">
+        <header class="section-header">
+          <div><span class="section-kicker">Watt Casino Rangliste</span><h1 id="leaderboard-title">Leaderboard</h1><p>Sortiert nach dem aktuellen virtuellen Kontostand.</p></div>
+          <div class="connection-status" id="leaderboard-status"><span aria-hidden="true"></span><strong>Aktuell</strong></div>
+        </header>
+        <div class="leaderboard-table-wrap">
+          <table class="leaderboard-table">
+            <thead><tr><th>Rang</th><th>Spieler</th><th>Spielgeld</th><th>Runden</th><th>Gewinnrate</th></tr></thead>
+            <tbody id="leaderboard-body"></tbody>
+          </table>
+          <p class="empty-state" id="leaderboard-empty" hidden>Noch keine Spieler vorhanden.</p>
+        </div>
+        <footer class="pagination">
+          <button id="leaderboard-prev" type="button">Zurück</button>
+          <span id="leaderboard-page">Seite 1 von 1</span>
+          <button id="leaderboard-next" type="button">Weiter</button>
+        </footer>
+      </section>
+    </main>
+
+    <footer class="site-footer"><span>Watt Casino</span><p>Kostenloses Blackjack · Ausschließlich Spielgeld · Keine Registrierung mit Echtgeldbezug</p></footer>
+  </div>
+
+  <dialog class="profile-dialog" id="profile-dialog" aria-labelledby="profile-title">
+    <div class="profile-shell">
+      <header class="profile-header">
+        <div><span class="section-kicker">Spielerprofil</span><h2 id="profile-title">Profil</h2></div>
+        <button class="modal-close" id="profile-close" type="button" aria-label="Profil schließen">×</button>
+      </header>
+      <div class="profile-loading" id="profile-loading">Profil wird geladen …</div>
+      <div id="profile-content" hidden></div>
+    </div>
+  </dialog>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
