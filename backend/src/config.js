@@ -9,9 +9,15 @@ function integerFromEnv(name, fallback, minimum, maximum) {
   return value;
 }
 
-// CORS bleibt auf die Produktivseite und die lokale Beta begrenzt. Zusätzliche
-// Origins können in Railway kommasepariert über FRONTEND_ORIGINS gesetzt werden.
-const defaultFrontendOrigins = ["https://wigipedia.netlify.app", "http://127.0.0.1:5501"];
+// CORS bleibt auf die tatsächlichen Frontends begrenzt. Weitere Origins werden
+// für den eigenen Server direkt in backend/.env kommasepariert eingetragen.
+const defaultFrontendOrigins = [
+  "https://wigipedia.netlify.app",
+  "http://127.0.0.1:5501",
+  "http://127.0.0.1:8080",
+  "http://localhost:5501",
+  "http://localhost:8080"
+];
 const frontendOriginsInput = process.env.FRONTEND_ORIGINS?.trim()
   ? process.env.FRONTEND_ORIGINS.split(",")
   : [...defaultFrontendOrigins, process.env.FRONTEND_ORIGIN?.trim()].filter(Boolean);
@@ -30,6 +36,7 @@ try {
 }
 
 export const config = Object.freeze({
+  host: process.env.HOST?.trim() || "127.0.0.1",
   port: integerFromEnv("PORT", 3000, 1, 65535),
   nodeEnv: process.env.NODE_ENV ?? "development",
   frontendOrigins,

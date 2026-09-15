@@ -1,6 +1,7 @@
 "use strict";
 
-const API_URL = "https://watt-casino-api-production.up.railway.app";
+// Muss immer identisch mit der API_URL in ../script.js sein.
+const API_URL = "http://127.0.0.1:3000";
 const ADMIN_TOKEN_KEY = "wattCasinoAdminToken";
 
 const ui = {

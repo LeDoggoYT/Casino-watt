@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "start:public": "node src/server.js",
     "test": "node --test"
   },
   "engines": {

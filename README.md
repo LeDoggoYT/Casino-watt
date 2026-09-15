@@ -22,11 +22,13 @@ Casino Watt/
     └── test/
 ```
 
-## Lokal starten
+## Ohne Railway: auf dem eigenen PC oder Server starten
 
-Voraussetzung: Node.js 20 oder neuer und Python 3 (oder ein anderer statischer Webserver).
+Das Backend ist jetzt vollständig eigenständig. Es benötigt nur Node.js 20+ oder Docker; Railway wird nicht verwendet.
 
-1. API konfigurieren und starten:
+### Lokal auf dem eigenen PC
+
+1. In PowerShell:
 
    ```powershell
    cd "C:\Users\lolac\Documents\Casino Watt\backend"
@@ -35,42 +37,57 @@ Voraussetzung: Node.js 20 oder neuer und Python 3 (oder ein anderer statischer W
    npm run dev
    ```
 
-2. In einem zweiten Terminal das Frontend bereitstellen:
+2. In einem zweiten Terminal das Frontend starten:
 
    ```powershell
    cd "C:\Users\lolac\Documents\Casino Watt"
    python -m http.server 8080 --bind 127.0.0.1
    ```
 
-3. `http://127.0.0.1:8080` im Browser öffnen.
+3. Öffne `http://127.0.0.1:8080`. Die Frontend-Dateien zeigen bereits auf `http://127.0.0.1:3000`; Registrierung, Blackjack, Adminbereich und Leaderboard funktionieren damit direkt auf diesem PC.
 
-Die lokale Standardkonfiguration passt zusammen:
+Der Adminbereich ist lokal unter `http://127.0.0.1:8080/admin/` erreichbar. Das lokale Passwort stammt aus `backend/.env`.
 
-```text
-Frontend: http://127.0.0.1:8080
-API:      http://127.0.0.1:3000
-```
+### Eigener VPS oder eigener Rechner als öffentlicher Server
 
-## Domains konfigurieren
+Für die bereits veröffentlichte Netlify-Seite muss die API über **deine eigene HTTPS-Domain** erreichbar sein. Eine lokale `127.0.0.1`-Adresse kann Netlify nicht erreichen.
 
-Die API erlaubt CORS ausschließlich für explizit festgelegte Frontend-Domains. Setze im Backend in `backend/.env`:
+Voraussetzungen: eine Domain (z. B. `api.deine-domain.de`), ein Rechner/VPS mit öffentlicher IPv4-Adresse, Docker und freie Ports 80/443. Leite den DNS-A-Record der API-Domain auf die öffentliche IP des Rechners.
 
-```dotenv
-FRONTEND_ORIGINS=https://wigipedia.netlify.app,http://127.0.0.1:5501
-```
+1. Repository auf den Server kopieren oder klonen.
+2. `backend/.env` aus der Vorlage anlegen und mindestens diese Werte setzen:
 
-Setze anschließend im Frontend in `script.js` dieselbe veröffentlichte API-Adresse:
+   ```dotenv
+   NODE_ENV=production
+   ADMIN_PASSWORD=2011
+   API_DOMAIN=api.deine-domain.de
+   FRONTEND_ORIGINS=https://wigipedia.netlify.app
+   ```
 
-```js
-const API_URL = "https://api.example.com";
-```
+   Verwende in der Praxis ein deutlich längeres, eigenes Admin-Passwort.
 
-Für lokale Entwicklung bleiben die beiden Standardwerte aus `.env.example` und `script.js` passend. Für die Produktion müssen beide Adressen HTTPS verwenden. Die API-Domain gehört nie in einen geheimen Schlüssel; sie ist öffentlich. Zugangsdaten, Passwörter und Servergeheimnisse werden nicht im Frontend abgelegt.
+3. Im Projektordner starten:
+
+   ```bash
+   docker compose --profile public up -d --build
+   ```
+
+   Docker speichert die SQLite-Datenbank dauerhaft im Volume `watt_casino_data`. Caddy stellt die API mit automatischem HTTPS-Zertifikat bereit.
+
+4. Prüfe danach `https://api.deine-domain.de/health`. Es muss `"success":true` zurückgeben.
+5. Ersetze in **beiden** Dateien `script.js` und `admin/admin.js` die Konstante durch dieselbe eigene HTTPS-Adresse und veröffentliche das Frontend erneut:
+
+   ```js
+   const API_URL = "https://api.deine-domain.de";
+   ```
+
+Die API-Domain ist öffentlich und kein Geheimnis. Passwörter sowie die Datei `backend/.env` bleiben ausschließlich auf deinem PC/Server.
 
 ## Umgebungsvariablen
 
 | Variable | Zweck | Standard |
 | --- | --- | --- |
+| `HOST` | Bind-Adresse der API (`127.0.0.1` lokal, `0.0.0.0` im Container) | `127.0.0.1` |
 | `PORT` | HTTP-Port der API | `3000` |
 | `NODE_ENV` | Laufzeitmodus | `development` |
 | `FRONTEND_ORIGINS` | erlaubte CORS-Ursprünge, kommasepariert | Produktivseite und lokale Beta |
@@ -79,16 +96,13 @@ Für lokale Entwicklung bleiben die beiden Standardwerte aus `.env.example` und 
 | `BCRYPT_ROUNDS` | bcrypt-Kostenfaktor | `12` |
 | `TRUST_PROXY` | Anzahl vertrauenswürdiger Reverse-Proxies | `0` |
 | `ADMIN_PASSWORD` | Passwort für den nicht verlinkten Bereich `/admin/` | lokal `2011` |
+| `API_DOMAIN` | eigene API-Domain für Caddy/Docker | kein Standard |
 
 Beim ersten Serverstart werden Datenbank, Tabellen und Indizes automatisch erstellt.
 
 ## Adminbereich
 
-Der Adminbereich ist bewusst nirgendwo in der Anwendung verlinkt und wird direkt über `/admin/` aufgerufen. Das Passwort wird ausschließlich von der API geprüft. Für Railway muss vor dem Deployment diese Variable gesetzt werden:
-
-```dotenv
-ADMIN_PASSWORD=2011
-```
+Der Adminbereich ist bewusst nirgendwo in der Anwendung verlinkt und wird direkt über `/admin/` aufgerufen. Das Passwort wird ausschließlich von der API geprüft.
 
 Im Adminbereich können Guthaben und Benutzernamen geändert sowie Konten mit einer sichtbaren Begründung gesperrt und entsperrt werden. Alle Änderungen werden serverseitig in `admin_audit_log` protokolliert. Eine Guthabenänderung ist während einer aktiven Blackjack-Runde gesperrt, damit keine inkonsistenten Auszahlungen entstehen.
 

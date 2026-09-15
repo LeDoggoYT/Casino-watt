@@ -17,7 +17,7 @@ app.set("trust proxy", config.trustProxy);
 app.use(helmet());
 const corsOptions = {
   origin(origin, callback) {
-    // Requests ohne Origin sind keine Browser-CORS-Anfragen (z. B. Railway Healthchecks).
+    // Requests ohne Origin sind keine Browser-CORS-Anfragen (z. B. Healthchecks).
     if (!origin) return callback(null, true);
     try {
       return callback(null, config.frontendOrigins.includes(new URL(origin).origin));
@@ -80,6 +80,6 @@ app.use((error, _req, res, _next) => {
 cleanupExpiredData();
 setInterval(cleanupExpiredData, 60 * 60_000).unref();
 
-app.listen(config.port, () => {
-  console.log(`Watt Casino API läuft auf Port ${config.port}.`);
+app.listen(config.port, config.host, () => {
+  console.log(`Watt Casino API läuft auf http://${config.host}:${config.port}.`);
 });
