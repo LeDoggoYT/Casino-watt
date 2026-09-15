@@ -417,7 +417,8 @@ def audit(user_id, action, previous, new, reason=None):
 
 def make_app():
     app = Flask(__name__)
-    app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
+    # Multipart-Overhead darf die eigentliche 2-MB-Bildgrenze nicht auslösen.
+    app.config["MAX_CONTENT_LENGTH"] = 3 * 1024 * 1024
     initialise_database(app)
 
     @app.teardown_appcontext
@@ -471,7 +472,7 @@ def make_app():
     def avatar_file(filename):
         if not re.fullmatch(r"avatar-\d+\.(png|jpg|webp)", filename):
             raise ApiError(404, "Profilbild nicht gefunden.")
-        return send_from_directory(AVATAR_DIRECTORY, filename, max_age=3600)
+        return send_from_directory(AVATAR_DIRECTORY, filename, max_age=0)
 
     @app.post("/api/auth/register")
     def register():

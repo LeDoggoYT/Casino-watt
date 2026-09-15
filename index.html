@@ -82,11 +82,11 @@
         <button class="nav-link" type="button" data-view="leaderboard">Leaderboard</button>
       </nav>
       <div class="header-account">
-        <label class="avatar-upload" title="Profilbild ändern">
-          <input id="avatar-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+        <button class="avatar-button" id="avatar-open" type="button" aria-label="Profilbild auswählen oder ändern">
           <span class="avatar avatar--header" id="header-avatar" aria-hidden="true"></span>
-          <span class="visually-hidden">Profilbild ändern</span>
-        </label>
+          <span class="avatar-button-copy"><strong>Profilbild</strong><small>Ändern</small></span>
+          <span class="avatar-add" aria-hidden="true">+</span>
+        </button>
         <span class="header-user" id="header-user"></span>
         <button class="logout-button" id="logout" type="button">Abmelden</button>
       </div>
@@ -199,6 +199,37 @@
       </header>
       <div class="profile-loading" id="profile-loading">Profil wird geladen …</div>
       <div id="profile-content" hidden></div>
+    </div>
+  </dialog>
+
+  <dialog class="avatar-dialog" id="avatar-dialog" aria-labelledby="avatar-dialog-title">
+    <div class="avatar-editor">
+      <header class="profile-header">
+        <div><span class="section-kicker">Spielerprofil</span><h2 id="avatar-dialog-title">Profilbild bearbeiten</h2></div>
+        <button class="modal-close" id="avatar-close" type="button" aria-label="Dialog schließen">×</button>
+      </header>
+      <div class="avatar-picker" id="avatar-picker">
+        <div class="avatar-picker-mark" aria-hidden="true">+</div>
+        <strong>Bild auswählen</strong>
+        <p>PNG, JPG oder WebP · maximal 2 MB</p>
+        <label class="avatar-select-button">
+          Datei auswählen
+          <input id="avatar-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+        </label>
+      </div>
+      <div class="crop-editor" id="crop-editor" hidden>
+        <p class="crop-help">Bild verschieben und mit dem Regler passend zuschneiden.</p>
+        <div class="crop-stage">
+          <canvas id="crop-canvas" width="512" height="512" aria-label="Vorschau des Profilbild-Zuschnitts"></canvas>
+        </div>
+        <label class="zoom-control" for="crop-zoom"><span>Zoom</span><input id="crop-zoom" type="range" min="1" max="3" step="0.01" value="1"></label>
+        <button class="avatar-reselect" id="avatar-reselect" type="button">Anderes Bild auswählen</button>
+      </div>
+      <p class="avatar-error" id="avatar-error" role="alert"></p>
+      <footer class="avatar-actions">
+        <button class="avatar-cancel" id="avatar-cancel" type="button">Abbrechen</button>
+        <button class="avatar-save" id="avatar-save" type="button" disabled>Profilbild speichern</button>
+      </footer>
     </div>
   </dialog>
 

@@ -22,7 +22,18 @@ const ui = {
   registerMessage: document.querySelector("#register-message"),
   headerUser: document.querySelector("#header-user"),
   headerAvatar: document.querySelector("#header-avatar"),
+  avatarOpen: document.querySelector("#avatar-open"),
+  avatarDialog: document.querySelector("#avatar-dialog"),
+  avatarClose: document.querySelector("#avatar-close"),
+  avatarCancel: document.querySelector("#avatar-cancel"),
   avatarInput: document.querySelector("#avatar-input"),
+  avatarPicker: document.querySelector("#avatar-picker"),
+  avatarReselect: document.querySelector("#avatar-reselect"),
+  avatarSave: document.querySelector("#avatar-save"),
+  avatarError: document.querySelector("#avatar-error"),
+  cropEditor: document.querySelector("#crop-editor"),
+  cropCanvas: document.querySelector("#crop-canvas"),
+  cropZoom: document.querySelector("#crop-zoom"),
   logout: document.querySelector("#logout"),
   navLinks: [...document.querySelectorAll(".nav-link")],
   views: { game: document.querySelector("#game-view"), leaderboard: document.querySelector("#leaderboard-view") },
@@ -68,7 +79,8 @@ const state = {
   leaderboardTimer: null,
   leaderboardSignature: "",
   lastInteraction: Date.now(),
-  heartbeatTimer: null
+  heartbeatTimer: null,
+  avatarCrop: { image: null, zoom: 1, x: 0, y: 0, baseScale: 1, dragging: false, pointerX: 0, pointerY: 0 }
 };
 
 function formatChips(value) {
@@ -247,27 +259,121 @@ function renderAvatar(target, player) {
   }
 }
 
-async function uploadAvatar(file) {
+function resetAvatarEditor() {
+  state.avatarCrop.image = null;
+  state.avatarCrop.zoom = 1;
+  state.avatarCrop.x = 0;
+  state.avatarCrop.y = 0;
+  ui.cropZoom.value = "1";
+  ui.avatarInput.value = "";
+  ui.avatarError.textContent = "";
+  ui.avatarPicker.hidden = false;
+  ui.cropEditor.hidden = true;
+  ui.avatarSave.disabled = true;
+}
+
+function openAvatarEditor() {
+  resetAvatarEditor();
+  ui.avatarDialog.showModal();
+}
+
+function closeAvatarEditor() {
+  state.avatarCrop.dragging = false;
+  ui.avatarDialog.close();
+  resetAvatarEditor();
+}
+
+function clampCropPosition() {
+  const crop = state.avatarCrop;
+  if (!crop.image) return;
+  const width = crop.image.naturalWidth * crop.baseScale * crop.zoom;
+  const height = crop.image.naturalHeight * crop.baseScale * crop.zoom;
+  crop.x = Math.min(0, Math.max(ui.cropCanvas.width - width, crop.x));
+  crop.y = Math.min(0, Math.max(ui.cropCanvas.height - height, crop.y));
+}
+
+function drawAvatarCrop() {
+  const crop = state.avatarCrop;
+  if (!crop.image) return;
+  clampCropPosition();
+  const context = ui.cropCanvas.getContext("2d");
+  context.clearRect(0, 0, ui.cropCanvas.width, ui.cropCanvas.height);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  const scale = crop.baseScale * crop.zoom;
+  context.drawImage(crop.image, crop.x, crop.y, crop.image.naturalWidth * scale, crop.image.naturalHeight * scale);
+}
+
+function setCropZoom(nextZoom) {
+  const crop = state.avatarCrop;
+  if (!crop.image) return;
+  const previousWidth = crop.image.naturalWidth * crop.baseScale * crop.zoom;
+  const previousHeight = crop.image.naturalHeight * crop.baseScale * crop.zoom;
+  const centerX = (ui.cropCanvas.width / 2 - crop.x) / previousWidth;
+  const centerY = (ui.cropCanvas.height / 2 - crop.y) / previousHeight;
+  crop.zoom = Number(nextZoom);
+  const width = crop.image.naturalWidth * crop.baseScale * crop.zoom;
+  const height = crop.image.naturalHeight * crop.baseScale * crop.zoom;
+  crop.x = ui.cropCanvas.width / 2 - centerX * width;
+  crop.y = ui.cropCanvas.height / 2 - centerY * height;
+  drawAvatarCrop();
+}
+
+function prepareAvatarFile(file) {
   if (!file) return;
+  ui.avatarError.textContent = "";
   if (!/^(image\/png|image\/jpeg|image\/webp)$/.test(file.type) || file.size > 2 * 1024 * 1024) {
-    setMessage("Profilbild", "Bitte ein PNG-, JPG- oder WebP-Bild bis 2 MB auswählen.", "loss");
+    ui.avatarError.textContent = "Bitte ein PNG-, JPG- oder WebP-Bild bis 2 MB auswählen.";
     return;
   }
-  const formData = new FormData();
-  formData.append("avatar", file);
-  ui.avatarInput.disabled = true;
+  const image = new Image();
+  const objectUrl = URL.createObjectURL(file);
+  image.onload = () => {
+    URL.revokeObjectURL(objectUrl);
+    const crop = state.avatarCrop;
+    crop.image = image;
+    crop.zoom = 1;
+    crop.baseScale = Math.max(ui.cropCanvas.width / image.naturalWidth, ui.cropCanvas.height / image.naturalHeight);
+    const width = image.naturalWidth * crop.baseScale;
+    const height = image.naturalHeight * crop.baseScale;
+    crop.x = (ui.cropCanvas.width - width) / 2;
+    crop.y = (ui.cropCanvas.height - height) / 2;
+    ui.cropZoom.value = "1";
+    ui.avatarPicker.hidden = true;
+    ui.cropEditor.hidden = false;
+    ui.avatarSave.disabled = false;
+    drawAvatarCrop();
+  };
+  image.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    ui.avatarError.textContent = "Das ausgewählte Bild konnte nicht geöffnet werden.";
+  };
+  image.src = objectUrl;
+}
+
+async function saveCroppedAvatar() {
+  if (!state.avatarCrop.image || ui.avatarSave.disabled) return;
+  ui.avatarSave.disabled = true;
+  ui.avatarSave.textContent = "Wird gespeichert …";
+  ui.avatarError.textContent = "";
   try {
+    const blob = await new Promise((resolve, reject) => {
+      ui.cropCanvas.toBlob((result) => result ? resolve(result) : reject(new Error("Der Zuschnitt konnte nicht erstellt werden.")), "image/jpeg", 0.9);
+    });
+    const formData = new FormData();
+    formData.append("avatar", blob, "profilbild.jpg");
     const data = await api("/api/profile/avatar", { method: "POST", body: formData });
-    state.user.avatarUrl = data.avatarUrl;
+    state.user.avatarUrl = data.avatarUrl + "?v=" + Date.now();
     renderAvatar(ui.headerAvatar, state.user);
     state.leaderboardSignature = "";
     if (state.activeView === "leaderboard") loadLeaderboard();
+    closeAvatarEditor();
     setMessage("Profilbild aktualisiert", "Ihr Bild wird jetzt im Leaderboard angezeigt.", "win");
   } catch (error) {
-    setMessage("Profilbild nicht gespeichert", error.message, "loss");
+    ui.avatarError.textContent = error.message;
   } finally {
-    ui.avatarInput.value = "";
-    ui.avatarInput.disabled = false;
+    ui.avatarSave.textContent = "Profilbild speichern";
+    ui.avatarSave.disabled = !state.avatarCrop.image;
   }
 }
 
@@ -528,7 +634,32 @@ ui.registerTab.addEventListener("click", () => switchAuthTab("register"));
 ui.loginForm.addEventListener("submit", (event) => submitAuth(event, "login", ui.loginForm, ui.loginMessage));
 ui.registerForm.addEventListener("submit", (event) => submitAuth(event, "register", ui.registerForm, ui.registerMessage));
 ui.logout.addEventListener("click", async () => { try { await api("/api/auth/logout", { method: "POST" }); } catch {} clearSession(); });
-ui.avatarInput.addEventListener("change", () => uploadAvatar(ui.avatarInput.files?.[0]));
+ui.avatarOpen.addEventListener("click", openAvatarEditor);
+ui.avatarClose.addEventListener("click", closeAvatarEditor);
+ui.avatarCancel.addEventListener("click", closeAvatarEditor);
+ui.avatarDialog.addEventListener("click", (event) => { if (event.target === ui.avatarDialog) closeAvatarEditor(); });
+ui.avatarInput.addEventListener("change", () => prepareAvatarFile(ui.avatarInput.files?.[0]));
+ui.avatarReselect.addEventListener("click", () => ui.avatarInput.click());
+ui.avatarSave.addEventListener("click", saveCroppedAvatar);
+ui.cropZoom.addEventListener("input", () => setCropZoom(ui.cropZoom.value));
+ui.cropCanvas.addEventListener("pointerdown", (event) => {
+  if (!state.avatarCrop.image) return;
+  state.avatarCrop.dragging = true;
+  state.avatarCrop.pointerX = event.clientX;
+  state.avatarCrop.pointerY = event.clientY;
+  ui.cropCanvas.setPointerCapture(event.pointerId);
+});
+ui.cropCanvas.addEventListener("pointermove", (event) => {
+  const crop = state.avatarCrop;
+  if (!crop.dragging) return;
+  const rect = ui.cropCanvas.getBoundingClientRect();
+  crop.x += (event.clientX - crop.pointerX) * (ui.cropCanvas.width / rect.width);
+  crop.y += (event.clientY - crop.pointerY) * (ui.cropCanvas.height / rect.height);
+  crop.pointerX = event.clientX;
+  crop.pointerY = event.clientY;
+  drawAvatarCrop();
+});
+["pointerup", "pointercancel"].forEach((eventName) => ui.cropCanvas.addEventListener(eventName, () => { state.avatarCrop.dragging = false; }));
 ui.suspendedLogout.addEventListener("click", clearSession);
 ui.navLinks.forEach((link) => link.addEventListener("click", () => setView(link.dataset.view)));
 ui.chips.forEach((chip) => chip.addEventListener("click", () => addBet(chip.dataset.bet)));

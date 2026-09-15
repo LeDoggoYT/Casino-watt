@@ -887,11 +887,16 @@ a:focus-visible {
 .nav-link:hover, .nav-link.is-active { border-color: var(--gold); color: var(--cream); }
 .header-account { display: flex; gap: 16px; align-items: center; }
 .header-user { color: #d9d3c3; font-family: Arial, Helvetica, sans-serif; font-size: 12px; }
-.avatar-upload { display: inline-flex; cursor: pointer; }
 .avatar { display: inline-grid; flex: 0 0 auto; overflow: hidden; width: 32px; height: 32px; place-items: center; border: 1px solid #5a584e; border-radius: 50%; color: var(--gold-light); background: #252721; font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 700; line-height: 1; }
 .avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .avatar--header { width: 34px; height: 34px; transition: border-color .18s ease, transform .18s ease; }
-.avatar-upload:hover .avatar--header { border-color: var(--gold-light); transform: translateY(-1px); }
+.avatar-button { position: relative; display: inline-flex; gap: 9px; padding: 5px 9px 5px 5px; align-items: center; border: 1px solid #3f423c; border-radius: 22px; color: var(--cream); background: #181a18; cursor: pointer; transition: border-color .18s ease, background .18s ease; }
+.avatar-button:hover { border-color: #716a58; background: #20221f; }
+.avatar-button:hover .avatar--header { border-color: var(--gold-light); transform: translateY(-1px); }
+.avatar-button-copy { display: grid; gap: 1px; text-align: left; font-family: Arial, Helvetica, sans-serif; line-height: 1.05; }
+.avatar-button-copy strong { font-size: 10px; font-weight: 700; letter-spacing: .04em; }
+.avatar-button-copy small { color: var(--muted); font-size: 9px; }
+.avatar-add { position: absolute; bottom: 2px; left: 28px; display: grid; width: 15px; height: 15px; place-items: center; border: 2px solid #181a18; border-radius: 50%; color: #171817; background: var(--gold-light); font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 700; line-height: 1; }
 .player-link { display: inline-flex; gap: 9px; align-items: center; text-align: left; }
 .avatar--leaderboard { width: 28px; height: 28px; font-size: 10px; }
 .logout-button { padding: 7px 9px; border: 1px solid #474a43; border-radius: 2px; color: var(--muted); background: transparent; cursor: pointer; font-family: Arial, Helvetica, sans-serif; font-size: 10px; letter-spacing: .07em; text-transform: uppercase; }
@@ -941,6 +946,29 @@ a:focus-visible {
 .profile-meta { display: grid; gap: 7px; margin: 22px 0 0; color: #95968e; font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 1.5; }
 .profile-meta strong { color: #c6c3b9; font-weight: 500; }
 
+.avatar-dialog { width: min(520px, calc(100vw - 28px)); max-height: calc(100vh - 28px); padding: 0; overflow: auto; border: 1px solid #504c41; color: var(--cream); background: #191b19; box-shadow: 0 30px 90px rgb(0 0 0 / 65%); }
+.avatar-dialog::backdrop { background: rgb(0 0 0 / 72%); }
+.avatar-editor { padding: 28px; }
+.avatar-picker { display: grid; min-height: 285px; margin-top: 22px; padding: 32px; place-items: center; align-content: center; border: 1px dashed #56584f; background: #141614; text-align: center; }
+.avatar-picker-mark { display: grid; width: 64px; height: 64px; margin-bottom: 18px; place-items: center; border: 1px solid #766c55; border-radius: 50%; color: var(--gold-light); font-family: Arial, Helvetica, sans-serif; font-size: 34px; font-weight: 200; }
+.avatar-picker strong { font-size: 19px; font-weight: 400; }
+.avatar-picker p, .crop-help { margin: 7px 0 19px; color: var(--muted); font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 1.5; }
+.avatar-select-button, .avatar-save, .avatar-cancel, .avatar-reselect { min-height: 40px; padding: 0 16px; border: 1px solid #56594f; border-radius: 2px; cursor: pointer; font-family: Arial, Helvetica, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.avatar-select-button, .avatar-save { display: inline-grid; place-items: center; border-color: var(--gold); color: #171817; background: var(--gold-light); }
+.avatar-select-button:hover, .avatar-save:hover { background: #ead18e; }
+.avatar-save:disabled { opacity: .4; cursor: not-allowed; }
+.crop-editor { padding-top: 20px; }
+.crop-help { margin: 0 0 13px; text-align: center; }
+.crop-stage { width: min(340px, 78vw); margin: 0 auto; padding: 10px; border: 1px solid #504d43; border-radius: 50%; background: #101210; box-shadow: 0 13px 30px rgb(0 0 0 / 35%); }
+.crop-stage canvas { display: block; width: 100%; height: auto; border-radius: 50%; cursor: grab; touch-action: none; }
+.crop-stage canvas:active { cursor: grabbing; }
+.zoom-control { display: grid; grid-template-columns: 50px 1fr; gap: 13px; margin: 20px auto 12px; align-items: center; color: var(--muted); font-family: Arial, Helvetica, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.zoom-control input { width: 100%; accent-color: var(--gold); }
+.avatar-reselect { display: block; min-height: 32px; margin: 0 auto; padding: 0; border: 0; color: var(--muted); background: transparent; text-decoration: underline; text-decoration-color: #5a5c54; text-underline-offset: 4px; }
+.avatar-error { min-height: 19px; margin: 12px 0 0; color: #dc8585; font-family: Arial, Helvetica, sans-serif; font-size: 11px; text-align: center; }
+.avatar-actions { display: flex; gap: 10px; margin-top: 12px; justify-content: flex-end; }
+.avatar-cancel { color: #c8c5bb; background: transparent; }
+
 @media (max-width: 640px) {
   .auth-screen { padding: 14px; align-items: start; }
   .auth-card { margin-top: 34px; padding: 26px 22px; }
@@ -948,7 +976,10 @@ a:focus-visible {
   .site-header { min-height: 58px; }
   .brand-name { font-size: 16px; }
   .header-user { display: none; }
-  .header-account { gap: 0; }
+  .header-account { gap: 5px; }
+  .avatar-button { padding-right: 5px; }
+  .avatar-button-copy { display: none; }
+  .avatar-editor { padding: 22px 18px; }
   .logout-button { border: 0; padding-right: 0; font-size: 9px; }
   .nav-link { padding: 0 8px; font-size: 9px; }
   .leaderboard-view { width: 100%; margin: 0; }
