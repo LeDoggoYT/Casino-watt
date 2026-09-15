@@ -1,8 +1,8 @@
 "use strict";
 
 // Für das Deployment ausschließlich diese Adresse auf die HTTPS-API-Domain ändern.
-// Lokal direkt nutzbar. Für Netlify hier die eigene HTTPS-API-Domain eintragen.
-const API_URL = "http://127.0.0.1:3000";
+// Öffentliche PythonAnywhere-API für das Netlify-Frontend.
+const API_URL = "https://ledoggo.pythonanywhere.com";
 const TOKEN_KEY = "wattCasinoSessionToken";
 const LEADERBOARD_LIMIT = 25;
 const DEAL_STAGGER = 95;
