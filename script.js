@@ -21,6 +21,8 @@ const ui = {
   loginMessage: document.querySelector("#login-message"),
   registerMessage: document.querySelector("#register-message"),
   headerUser: document.querySelector("#header-user"),
+  headerAvatar: document.querySelector("#header-avatar"),
+  avatarInput: document.querySelector("#avatar-input"),
   logout: document.querySelector("#logout"),
   navLinks: [...document.querySelectorAll(".nav-link")],
   views: { game: document.querySelector("#game-view"), leaderboard: document.querySelector("#leaderboard-view") },
@@ -96,7 +98,8 @@ function actionId() {
 }
 
 async function api(path, options = {}) {
-  const headers = { "Content-Type": "application/json", ...(options.headers ?? {}) };
+  const headers = { ...(options.headers ?? {}) };
+  if (!(options.body instanceof FormData) && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
 
   let response;
@@ -154,6 +157,7 @@ function clearSession() {
   ui.app.hidden = true;
   ui.suspendedScreen.hidden = true;
   ui.authScreen.hidden = false;
+  ui.headerAvatar.replaceChildren();
   switchAuthTab("login");
 }
 
@@ -176,6 +180,7 @@ async function establishSession(token) {
   state.selectedBet = current.round?.bet ?? 0;
   state.settled = false;
   ui.headerUser.textContent = state.user.username;
+  renderAvatar(ui.headerAvatar, state.user);
   ui.authScreen.hidden = true;
   ui.suspendedScreen.hidden = true;
   ui.app.hidden = false;
@@ -218,6 +223,52 @@ function cardElement(card, animate) {
   element.setAttribute("aria-label", `${card.rank} ${card.suit}`);
   element.innerHTML = `<span class="card-corner"><span class="card-rank">${card.rank}</span><span class="card-suit-small">${card.suit}</span></span><span class="card-suit" aria-hidden="true">${card.suit}</span><span class="card-corner card-corner--bottom" aria-hidden="true"><span class="card-rank">${card.rank}</span><span class="card-suit-small">${card.suit}</span></span>`;
   return element;
+}
+
+function avatarSource(avatarUrl) {
+  return avatarUrl ? `${API_URL}${avatarUrl}` : "";
+}
+
+function initials(username) {
+  return (username || "?").trim().slice(0, 1).toUpperCase();
+}
+
+function renderAvatar(target, player) {
+  target.replaceChildren();
+  const source = avatarSource(player?.avatarUrl);
+  if (source) {
+    const image = document.createElement("img");
+    image.src = source;
+    image.alt = "";
+    image.addEventListener("error", () => { image.remove(); target.textContent = initials(player?.username); });
+    target.append(image);
+  } else {
+    target.textContent = initials(player?.username);
+  }
+}
+
+async function uploadAvatar(file) {
+  if (!file) return;
+  if (!/^(image\/png|image\/jpeg|image\/webp)$/.test(file.type) || file.size > 2 * 1024 * 1024) {
+    setMessage("Profilbild", "Bitte ein PNG-, JPG- oder WebP-Bild bis 2 MB auswählen.", "loss");
+    return;
+  }
+  const formData = new FormData();
+  formData.append("avatar", file);
+  ui.avatarInput.disabled = true;
+  try {
+    const data = await api("/api/profile/avatar", { method: "POST", body: formData });
+    state.user.avatarUrl = data.avatarUrl;
+    renderAvatar(ui.headerAvatar, state.user);
+    state.leaderboardSignature = "";
+    if (state.activeView === "leaderboard") loadLeaderboard();
+    setMessage("Profilbild aktualisiert", "Ihr Bild wird jetzt im Leaderboard angezeigt.", "win");
+  } catch (error) {
+    setMessage("Profilbild nicht gespeichert", error.message, "loss");
+  } finally {
+    ui.avatarInput.value = "";
+    ui.avatarInput.disabled = false;
+  }
 }
 
 function wait(milliseconds) {
@@ -385,12 +436,13 @@ function updateLeaderboardRows(players) {
     if (!row) {
       row = document.createElement("tr");
       row.dataset.username = player.username;
-      row.innerHTML = "<td class='rank-cell'></td><td><button class='player-link' type='button'></button></td><td class='money-cell'></td><td></td><td></td>";
+      row.innerHTML = "<td class='rank-cell'></td><td><button class='player-link' type='button'><span class='avatar avatar--leaderboard'></span><span class='player-link-name'></span></button></td><td class='money-cell'></td><td></td><td></td>";
       row.querySelector(".player-link").addEventListener("click", () => openProfile(player.username));
     }
     row.classList.toggle("is-current", player.isCurrentUser);
     row.cells[0].textContent = player.rank;
-    row.querySelector(".player-link").textContent = player.username;
+    renderAvatar(row.querySelector(".avatar"), player);
+    row.querySelector(".player-link-name").textContent = player.username;
     row.cells[1].querySelector(".you-badge")?.remove();
     if (player.isCurrentUser) { const badge = document.createElement("span"); badge.className = "you-badge"; badge.textContent = "Sie"; row.cells[1].append(badge); }
     row.cells[2].textContent = `${formatChips(player.balance)} Chips`;
@@ -437,7 +489,7 @@ async function openProfile(username) {
     const current = player.currentStreak;
     const streak = current.type === "win" ? `${current.count} Gewinn${current.count === 1 ? "" : "e"}` : current.type === "loss" ? `${current.count} Verlust${current.count === 1 ? "" : "e"}` : "Keine";
     ui.profileContent.innerHTML = `
-      <div class="profile-identity"><div><h3 class="profile-name">${escapeHtml(player.username)}</h3><p class="profile-balance">${formatChips(player.balance)} Chips</p></div><span class="profile-rank">Rang ${player.rank}</span></div>
+      <div class="profile-identity"><div class="profile-player"><span class="avatar avatar--profile" data-profile-avatar></span><div><h3 class="profile-name">${escapeHtml(player.username)}</h3><p class="profile-balance">${formatChips(player.balance)} Chips</p></div></div><span class="profile-rank">Rang ${player.rank}</span></div>
       <div class="profile-grid">
         ${profileStat("Gespielte Runden", player.roundsPlayed)}${profileStat("Gewonnen", player.wins)}${profileStat("Verloren", player.losses)}
         ${profileStat("Unentschieden", player.pushes)}${profileStat("Blackjacks", player.blackjacks)}${profileStat("Gewinnrate", formatPercent(player.winRate))}
@@ -446,6 +498,7 @@ async function openProfile(username) {
         ${profileStat("Beste Gewinnserie", player.bestWinStreak)}${profileStat("Spielzeit", formatDuration(player.totalPlaySeconds))}
       </div>
       <div class="profile-meta"><span>Registriert: <strong>${formatDate(player.registeredAt)}</strong></span><span>Letzte Aktivität: <strong>${formatDate(player.lastActivityAt)}</strong></span></div>`;
+    renderAvatar(ui.profileContent.querySelector("[data-profile-avatar]"), player);
     ui.profileLoading.hidden = true;
     ui.profileContent.hidden = false;
   } catch (error) {
@@ -475,6 +528,7 @@ ui.registerTab.addEventListener("click", () => switchAuthTab("register"));
 ui.loginForm.addEventListener("submit", (event) => submitAuth(event, "login", ui.loginForm, ui.loginMessage));
 ui.registerForm.addEventListener("submit", (event) => submitAuth(event, "register", ui.registerForm, ui.registerMessage));
 ui.logout.addEventListener("click", async () => { try { await api("/api/auth/logout", { method: "POST" }); } catch {} clearSession(); });
+ui.avatarInput.addEventListener("change", () => uploadAvatar(ui.avatarInput.files?.[0]));
 ui.suspendedLogout.addEventListener("click", clearSession);
 ui.navLinks.forEach((link) => link.addEventListener("click", () => setView(link.dataset.view)));
 ui.chips.forEach((chip) => chip.addEventListener("click", () => addBet(chip.dataset.bet)));

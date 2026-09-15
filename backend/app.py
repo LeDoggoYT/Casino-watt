@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import bcrypt
-from flask import Flask, g, jsonify, request
+from flask import Flask, g, jsonify, request, send_from_directory
 
 BASE_DIR = Path(__file__).resolve().parent
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_-]{3,20}$")
@@ -63,6 +63,9 @@ load_env_file()
 DATABASE_PATH = Path(os.environ.get("DATABASE_PATH", str(BASE_DIR / "data" / "watt-casino.sqlite"))).expanduser()
 if not DATABASE_PATH.is_absolute():
     DATABASE_PATH = (BASE_DIR / DATABASE_PATH).resolve()
+AVATAR_DIRECTORY = Path(os.environ.get("AVATAR_DIRECTORY", str(DATABASE_PATH.parent / "avatars"))).expanduser()
+if not AVATAR_DIRECTORY.is_absolute():
+    AVATAR_DIRECTORY = (BASE_DIR / AVATAR_DIRECTORY).resolve()
 FRONTEND_ORIGINS = {
     origin.strip().rstrip("/")
     for origin in os.environ.get(
@@ -106,7 +109,8 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
  id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, username_normalized TEXT NOT NULL UNIQUE,
  password_hash TEXT NOT NULL, created_at TEXT NOT NULL, last_activity_at TEXT NOT NULL,
- is_suspended INTEGER NOT NULL DEFAULT 0 CHECK (is_suspended IN (0,1)), suspension_reason TEXT, suspended_at TEXT);
+ is_suspended INTEGER NOT NULL DEFAULT 0 CHECK (is_suspended IN (0,1)), suspension_reason TEXT, suspended_at TEXT,
+ avatar_filename TEXT);
 CREATE TABLE IF NOT EXISTS sessions (
  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, last_used_at TEXT NOT NULL);
@@ -157,6 +161,7 @@ def initialise_database(app: Flask) -> None:
             ("is_suspended", "INTEGER NOT NULL DEFAULT 0 CHECK (is_suspended IN (0,1))"),
             ("suspension_reason", "TEXT"),
             ("suspended_at", "TEXT"),
+            ("avatar_filename", "TEXT"),
         ]:
             columns = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
             if name not in columns:
@@ -383,6 +388,20 @@ def rates(row):
     return (round((row["wins"] / completed) * 100, 1), round((row["losses"] / completed) * 100, 1)) if completed else (0, 0)
 
 
+def avatar_url(filename: str | None) -> str | None:
+    return f"/api/avatars/{filename}" if filename else None
+
+
+def image_extension(content: bytes) -> str | None:
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if content.startswith(b"\xff\xd8\xff"):
+        return "jpg"
+    if len(content) >= 12 and content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+        return "webp"
+    return None
+
+
 def issue_session(user_id):
     token, now = new_token(), datetime.now(timezone.utc)
     expires = now + timedelta(days=SESSION_DAYS)
@@ -398,7 +417,7 @@ def audit(user_id, action, previous, new, reason=None):
 
 def make_app():
     app = Flask(__name__)
-    app.config["MAX_CONTENT_LENGTH"] = 20 * 1024
+    app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
     initialise_database(app)
 
     @app.teardown_appcontext
@@ -448,6 +467,12 @@ def make_app():
     @app.get("/health")
     def health(): return ok({"status":"ok"})
 
+    @app.get("/api/avatars/<filename>")
+    def avatar_file(filename):
+        if not re.fullmatch(r"avatar-\d+\.(png|jpg|webp)", filename):
+            raise ApiError(404, "Profilbild nicht gefunden.")
+        return send_from_directory(AVATAR_DIRECTORY, filename, max_age=3600)
+
     @app.post("/api/auth/register")
     def register():
         payload = body(); username, normalized = validate_credentials(payload.get("username"),payload.get("password"))
@@ -479,8 +504,33 @@ def make_app():
     @app.get("/api/auth/me")
     @auth_required
     def me():
-        row=get_db().execute("SELECT u.username,u.created_at,u.last_activity_at,b.amount AS balance,s.rounds_played,s.wins,s.losses,s.pushes,s.blackjacks FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id WHERE u.id=?",(g.auth["user_id"],)).fetchone()
-        return ok({"user":dict(row)})
+        row=get_db().execute("SELECT u.username,u.created_at,u.last_activity_at,u.avatar_filename,b.amount AS balance,s.rounds_played,s.wins,s.losses,s.pushes,s.blackjacks FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id WHERE u.id=?",(g.auth["user_id"],)).fetchone()
+        user=dict(row); user["avatarUrl"]=avatar_url(user.pop("avatar_filename"))
+        return ok({"user":user})
+
+    @app.post("/api/profile/avatar")
+    @auth_required
+    def upload_avatar():
+        file = request.files.get("avatar")
+        if not file or not file.filename:
+            raise ApiError(400, "Bitte wähle ein Profilbild aus.")
+        content = file.read()
+        extension = image_extension(content)
+        if not extension:
+            raise ApiError(400, "Erlaubt sind nur PNG-, JPG- und WebP-Bilder.")
+        if not content or len(content) > 2 * 1024 * 1024:
+            raise ApiError(400, "Das Profilbild darf höchstens 2 MB groß sein.")
+        AVATAR_DIRECTORY.mkdir(parents=True, exist_ok=True)
+        filename = f"avatar-{g.auth['user_id']}.{extension}"
+        with transaction() as db:
+            previous = db.execute("SELECT avatar_filename FROM users WHERE id=?", (g.auth["user_id"],)).fetchone()["avatar_filename"]
+            db.execute("UPDATE users SET avatar_filename=? WHERE id=?", (filename, g.auth["user_id"]))
+        if previous and previous != filename:
+            old_file = AVATAR_DIRECTORY / previous
+            if old_file.is_file():
+                old_file.unlink()
+        (AVATAR_DIRECTORY / filename).write_bytes(content)
+        return ok({"avatarUrl": avatar_url(filename)}, "Profilbild aktualisiert.")
 
     @app.post("/api/game/start")
     @auth_required
@@ -540,21 +590,21 @@ def make_app():
     def leaderboard():
         page=positive_int(request.args.get("page"),1); limit=positive_int(request.args.get("limit"),25,100)
         db=get_db(); total=db.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"]; pages=max(1,(total+limit-1)//limit); page=min(page,pages)
-        rows=db.execute("""SELECT u.username,b.amount AS balance,s.rounds_played,s.wins,s.losses,RANK() OVER (ORDER BY b.amount DESC) AS rank FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id ORDER BY b.amount DESC,u.username_normalized ASC LIMIT ? OFFSET ?""",(limit,(page-1)*limit)).fetchall()
+        rows=db.execute("""SELECT u.username,u.avatar_filename,b.amount AS balance,s.rounds_played,s.wins,s.losses,RANK() OVER (ORDER BY b.amount DESC) AS rank FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id ORDER BY b.amount DESC,u.username_normalized ASC LIMIT ? OFFSET ?""",(limit,(page-1)*limit)).fetchall()
         players=[] 
         for row in rows:
-            win,_=rates(row); players.append({"rank":row["rank"],"username":row["username"],"balance":row["balance"],"roundsPlayed":row["rounds_played"],"winRate":win,"isCurrentUser":normalise(row["username"])==normalise(g.auth["username"])})
+            win,_=rates(row); players.append({"rank":row["rank"],"username":row["username"],"avatarUrl":avatar_url(row["avatar_filename"]),"balance":row["balance"],"roundsPlayed":row["rounds_played"],"winRate":win,"isCurrentUser":normalise(row["username"])==normalise(g.auth["username"])})
         return ok({"players":players,"pagination":{"page":page,"limit":limit,"total":total,"totalPages":pages}})
 
     @app.get("/api/players/<username>")
     @auth_required
     def profile(username):
         if not USERNAME_RE.fullmatch(username): raise ApiError(400,"Ungültiger Benutzername.")
-        row=get_db().execute("""SELECT u.id,u.username,u.created_at,u.last_activity_at,b.amount AS balance,s.*, (SELECT 1+COUNT(*) FROM balances other WHERE other.amount>b.amount) AS rank FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id WHERE u.username_normalized=?""",(normalise(username),)).fetchone()
+        row=get_db().execute("""SELECT u.id,u.username,u.created_at,u.last_activity_at,u.avatar_filename,b.amount AS balance,s.*, (SELECT 1+COUNT(*) FROM balances other WHERE other.amount>b.amount) AS rank FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id WHERE u.username_normalized=?""",(normalise(username),)).fetchone()
         if not row: raise ApiError(404,"Spieler nicht gefunden.")
         win,loss=rates(row); streak={"type":"win","count":row["current_streak"]} if row["current_streak"]>0 else ({"type":"loss","count":abs(row["current_streak"])} if row["current_streak"]<0 else {"type":"none","count":0})
         keys={"username":"username","balance":"balance","rank":"rank","roundsPlayed":"rounds_played","wins":"wins","losses":"losses","pushes":"pushes","blackjacks":"blackjacks","highestBalance":"highest_balance","biggestWin":"biggest_win","totalWon":"total_won","totalLost":"total_lost","bestWinStreak":"best_win_streak","totalPlaySeconds":"total_play_seconds","registeredAt":"created_at","lastActivityAt":"last_activity_at"}
-        player={out:row[key] for out,key in keys.items()}; player.update(winRate=win,lossRate=loss,currentStreak=streak,isCurrentUser=row["id"]==g.auth["user_id"])
+        player={out:row[key] for out,key in keys.items()}; player.update(avatarUrl=avatar_url(row["avatar_filename"]),winRate=win,lossRate=loss,currentStreak=streak,isCurrentUser=row["id"]==g.auth["user_id"])
         return ok({"player":player})
 
     @app.post("/api/activity")

@@ -1,4 +1,5 @@
 import os
+from io import BytesIO
 import tempfile
 import unittest
 from pathlib import Path
@@ -66,6 +67,22 @@ class WattCasinoApiTests(unittest.TestCase):
         )
         self.assertEqual(preflight.status_code, 204)
         self.assertEqual(preflight.headers["Access-Control-Allow-Origin"], "http://127.0.0.1:8080")
+
+    def test_avatar_upload_is_saved_and_publicly_served(self):
+        player = {"username": "AvatarPlayer", "password": "SicheresTestpasswort9"}
+        token = self.request("POST", "/api/auth/register", player).get_json()["data"]["token"]
+        response = self.client.post(
+            "/api/profile/avatar",
+            data={"avatar": (BytesIO(b"\x89PNG\r\n\x1a\nminimal"), "avatar.png")},
+            content_type="multipart/form-data",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        self.assertEqual(response.status_code, 200)
+        avatar_url = response.get_json()["data"]["avatarUrl"]
+        self.assertEqual(self.request("GET", "/api/auth/me", token=token).get_json()["data"]["user"]["avatarUrl"], avatar_url)
+        avatar_response = self.client.get(avatar_url)
+        self.assertEqual(avatar_response.status_code, 200)
+        avatar_response.close()
 
     def test_blackjack_rules_match_the_browser_game(self):
         card = lambda rank, suit="♠": {"rank": rank, "suit": suit}

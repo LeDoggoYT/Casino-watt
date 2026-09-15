@@ -82,6 +82,11 @@
         <button class="nav-link" type="button" data-view="leaderboard">Leaderboard</button>
       </nav>
       <div class="header-account">
+        <label class="avatar-upload" title="Profilbild ändern">
+          <input id="avatar-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+          <span class="avatar avatar--header" id="header-avatar" aria-hidden="true"></span>
+          <span class="visually-hidden">Profilbild ändern</span>
+        </label>
         <span class="header-user" id="header-user"></span>
         <button class="logout-button" id="logout" type="button">Abmelden</button>
       </div>
