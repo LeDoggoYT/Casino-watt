@@ -72,7 +72,8 @@ authRouter.post("/login", async (req, res) => {
   }
 
   const user = db.prepare(`
-    SELECT u.id, u.username, u.password_hash, b.amount AS balance
+    SELECT u.id, u.username, u.password_hash, u.is_suspended, u.suspension_reason,
+           b.amount AS balance
     FROM users u JOIN balances b ON b.user_id = u.id
     WHERE u.username_normalized = ?
   `).get(username.toLocaleLowerCase("de-DE"));
@@ -80,6 +81,12 @@ authRouter.post("/login", async (req, res) => {
   const fallbackHash = "$2b$12$C6UzMDM.H6dfI/f/IKcEe.5ZxQwDPZ9vtQd0Z4E4YW/.GQqX9vJ6G";
   const valid = await bcrypt.compare(password, user?.password_hash ?? fallbackHash);
   if (!user || !valid) throw new ApiError(401, "Benutzername oder Passwort ist falsch.");
+  if (user.is_suspended) {
+    throw new ApiError(403, "Dieses Spielerkonto wurde gesperrt.", {
+      suspended: true,
+      reason: user.suspension_reason || "Kein Grund angegeben."
+    });
+  }
 
   const session = issueSession(user.id);
   return ok(res, {

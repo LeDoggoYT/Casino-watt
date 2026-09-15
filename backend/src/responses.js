@@ -7,9 +7,10 @@ export function fail(res, status, message, data = {}) {
 }
 
 export class ApiError extends Error {
-  constructor(status, message) {
+  constructor(status, message, data = {}) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.data = data;
   }
 }

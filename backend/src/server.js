@@ -71,7 +71,7 @@ app.use("/api", activityRouter);
 
 app.use((_req, res) => fail(res, 404, "Endpunkt nicht gefunden."));
 app.use((error, _req, res, _next) => {
-  if (error instanceof ApiError) return fail(res, error.status, error.message);
+  if (error instanceof ApiError) return fail(res, error.status, error.message, error.data);
   if (error?.type === "entity.parse.failed") return fail(res, 400, "Ungültiges JSON.");
   console.error("API-Fehler:", error instanceof Error ? error.message : "Unbekannter Fehler");
   return fail(res, 500, "Die Anfrage konnte nicht verarbeitet werden.");
