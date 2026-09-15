@@ -20,7 +20,7 @@ const corsOptions = {
     // Requests ohne Origin sind keine Browser-CORS-Anfragen (z. B. Railway Healthchecks).
     if (!origin) return callback(null, true);
     try {
-      return callback(null, new URL(origin).origin === config.frontendOrigin);
+      return callback(null, config.frontendOrigins.includes(new URL(origin).origin));
     } catch {
       return callback(null, false);
     }

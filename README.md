@@ -53,10 +53,10 @@ API:      http://127.0.0.1:3000
 
 ## Domains konfigurieren
 
-Die API erlaubt CORS ausschließlich für eine feste Frontend-Domain. Setze im Backend in `backend/.env`:
+Die API erlaubt CORS ausschließlich für explizit festgelegte Frontend-Domains. Setze im Backend in `backend/.env`:
 
 ```dotenv
-FRONTEND_ORIGIN=https://casino.example.com
+FRONTEND_ORIGINS=https://wigipedia.netlify.app,http://127.0.0.1:5501
 ```
 
 Setze anschließend im Frontend in `script.js` dieselbe veröffentlichte API-Adresse:
@@ -73,7 +73,7 @@ Für lokale Entwicklung bleiben die beiden Standardwerte aus `.env.example` und 
 | --- | --- | --- |
 | `PORT` | HTTP-Port der API | `3000` |
 | `NODE_ENV` | Laufzeitmodus | `development` |
-| `FRONTEND_ORIGIN` | einzig erlaubter CORS-Ursprung | erforderlich |
+| `FRONTEND_ORIGINS` | erlaubte CORS-Ursprünge, kommasepariert | Produktivseite und lokale Beta |
 | `DATABASE_PATH` | SQLite-Datei relativ zu `backend/` | `./data/watt-casino.sqlite` |
 | `SESSION_DAYS` | Gültigkeit einer Anmeldung | `30` |
 | `BCRYPT_ROUNDS` | bcrypt-Kostenfaktor | `12` |
