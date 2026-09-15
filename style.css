@@ -887,10 +887,10 @@ a:focus-visible {
 .nav-link:hover, .nav-link.is-active { border-color: var(--gold); color: var(--cream); }
 .header-account { display: flex; gap: 16px; align-items: center; }
 .header-user { color: #d9d3c3; font-family: Arial, Helvetica, sans-serif; font-size: 12px; }
-.avatar { display: inline-grid; flex: 0 0 auto; overflow: hidden; width: 32px; height: 32px; aspect-ratio: 1; place-items: center; border: 1px solid #5a584e; border-radius: 50%; color: var(--gold-light); background: #252721; font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 700; line-height: 1; }
-/* Avatare folgen immer der festen Größe ihres Rahmens, nie den Bildmaßen der Datei. */
-.avatar img { display: block; width: 100%; min-width: 100%; max-width: 100%; height: 100%; min-height: 100%; max-height: 100%; object-fit: cover; object-position: center; }
-.avatar--header { width: 34px; height: 34px; transition: border-color .18s ease, transform .18s ease; }
+.avatar { --avatar-size: 32px; position: relative; display: inline-grid; flex: 0 0 var(--avatar-size); overflow: hidden; box-sizing: border-box; width: var(--avatar-size); min-width: var(--avatar-size); max-width: var(--avatar-size); height: var(--avatar-size); min-height: var(--avatar-size); max-height: var(--avatar-size); place-items: center; border: 1px solid #5a584e; border-radius: 50%; color: var(--gold-light); background: #252721; font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 700; line-height: 1; }
+/* Das Bild kann den Avatar-Rahmen niemals vergrößern. */
+.avatar img { position: absolute; inset: 0; display: block; box-sizing: border-box; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.avatar--header { --avatar-size: 34px; transition: border-color .18s ease, transform .18s ease; }
 .avatar-button { position: relative; display: inline-flex; gap: 9px; padding: 5px 9px 5px 5px; align-items: center; border: 1px solid #3f423c; border-radius: 22px; color: var(--cream); background: #181a18; cursor: pointer; transition: border-color .18s ease, background .18s ease; }
 .avatar-button:hover { border-color: #716a58; background: #20221f; }
 .avatar-button:hover .avatar--header { border-color: var(--gold-light); transform: translateY(-1px); }
@@ -899,7 +899,7 @@ a:focus-visible {
 .avatar-button-copy small { color: var(--muted); font-size: 9px; }
 .avatar-add { position: absolute; bottom: 2px; left: 28px; display: grid; width: 15px; height: 15px; place-items: center; border: 2px solid #181a18; border-radius: 50%; color: #171817; background: var(--gold-light); font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 700; line-height: 1; }
 .player-link { display: inline-flex; gap: 9px; align-items: center; text-align: left; }
-.avatar--leaderboard { width: 28px; height: 28px; font-size: 10px; }
+.avatar--leaderboard { --avatar-size: 28px; font-size: 10px; }
 .logout-button { padding: 7px 9px; border: 1px solid #474a43; border-radius: 2px; color: var(--muted); background: transparent; cursor: pointer; font-family: Arial, Helvetica, sans-serif; font-size: 10px; letter-spacing: .07em; text-transform: uppercase; }
 .logout-button:hover { border-color: #77786e; color: var(--cream); }
 
@@ -936,7 +936,7 @@ a:focus-visible {
 .profile-loading { padding: 45px 0; color: var(--muted); font-family: Arial, Helvetica, sans-serif; font-size: 13px; text-align: center; }
 .profile-identity { display: flex; padding: 23px 0; align-items: end; justify-content: space-between; border-bottom: 1px solid var(--line); }
 .profile-player { display: flex; gap: 14px; align-items: center; }
-.avatar--profile { width: 52px; height: 52px; font-size: 18px; border-color: #6a6556; }
+.avatar--profile { --avatar-size: 52px; font-size: 18px; border-color: #6a6556; }
 .profile-name { margin: 0; font-size: 23px; font-weight: 400; }
 .profile-rank { color: var(--gold-light); font-family: Arial, Helvetica, sans-serif; font-size: 12px; }
 .profile-balance { margin: 5px 0 0; color: var(--gold-light); font-size: 22px; }
