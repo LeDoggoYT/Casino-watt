@@ -1,0 +1,9 @@
+# Diesen Inhalt in die WSGI-Konfigurationsdatei auf PythonAnywhere kopieren.
+# Ersetze DEIN_PYTHONANYWHERE_NAME durch deinen echten PythonAnywhere-Namen.
+import sys
+
+project_dir = "/home/DEIN_PYTHONANYWHERE_NAME/Casino-Watt/backend"
+if project_dir not in sys.path:
+    sys.path.insert(0, project_dir)
+
+from app import app as application

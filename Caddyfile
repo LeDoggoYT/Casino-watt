@@ -1,6 +1,0 @@
-# Trage API_DOMAIN in backend/.env ein, z. B. api.deine-domain.de.
-# Caddy beschafft und erneuert das HTTPS-Zertifikat automatisch.
-{$API_DOMAIN} {
-  encode zstd gzip
-  reverse_proxy api:3000
-}

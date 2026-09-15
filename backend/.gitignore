@@ -5,3 +5,5 @@ data/
 *.sqlite-shm
 *.sqlite-wal
 coverage/
+__pycache__/
+*.py[cod]
