@@ -38,6 +38,14 @@ class WattCasinoApiTests(unittest.TestCase):
         self.assertEqual(game.status_code, 201)
         self.assertTrue(game.get_json()["success"])
 
+        # Das Frontend benötigt beim erneuten Laden nur noch diesen einen Abruf
+        # für Profil, Guthaben und die laufende Runde.
+        resumed = self.request("GET", "/api/auth/me", token=token)
+        resumed_data = resumed.get_json()["data"]
+        self.assertEqual(resumed.status_code, 200)
+        self.assertEqual(resumed_data["game"]["round"]["id"], game.get_json()["data"]["round"]["id"])
+        self.assertEqual(resumed_data["game"]["balance"], 975)
+
         admin = self.request("POST", "/api/admin/login", {"password": "2011"})
         self.assertEqual(admin.status_code, 200)
         admin_token = admin.get_json()["data"]["token"]

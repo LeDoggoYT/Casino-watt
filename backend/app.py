@@ -10,6 +10,7 @@ import os
 import re
 import secrets
 import sqlite3
+import threading
 import time
 import uuid
 from contextlib import contextmanager
@@ -25,6 +26,10 @@ ACTION_RE = re.compile(r"^[A-Za-z0-9_-]{16,80}$")
 SUITS = ["♠", "♥", "♦", "♣"]
 RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
 RATE_BUCKETS: dict[str, list[float]] = {}
+CLEANUP_LOCK = threading.Lock()
+LAST_CLEANUP_AT = 0.0
+AUTH_TOUCH_SECONDS = 5 * 60
+CLEANUP_INTERVAL_SECONDS = 15 * 60
 
 
 class ApiError(Exception):
@@ -229,7 +234,8 @@ def auth_required(view):
             raise ApiError(401, "Bitte erneut anmelden.")
         db = get_db()
         session = db.execute(
-            """SELECT s.id AS session_id,s.user_id,s.expires_at,u.username,u.is_suspended,u.suspension_reason,b.amount AS balance
+            """SELECT s.id AS session_id,s.user_id,s.expires_at,s.last_used_at,u.username,u.last_activity_at,
+                      u.is_suspended,u.suspension_reason,b.amount AS balance
                FROM sessions s JOIN users u ON u.id=s.user_id JOIN balances b ON b.user_id=u.id WHERE s.token_hash=?""",
             (token_hash(token),),
         ).fetchone()
@@ -241,8 +247,15 @@ def auth_required(view):
             raise ApiError(403, "Dieses Spielerkonto wurde gesperrt.", {"suspended": True, "reason": session["suspension_reason"] or "Kein Grund angegeben."})
         g.auth = dict(session)
         now = utc_now()
-        db.execute("UPDATE sessions SET last_used_at=? WHERE id=?", (now, session["session_id"]))
-        db.execute("UPDATE users SET last_activity_at=? WHERE id=?", (now, session["user_id"]))
+        # SQLite serialisiert Schreibzugriffe. Diese Zeitstempel müssen nicht bei jedem
+        # Karten-/Leaderboard-Request geschrieben werden; einmal je fünf Minuten reicht.
+        stale_before = (datetime.now(timezone.utc) - timedelta(seconds=AUTH_TOUCH_SECONDS)).isoformat(
+            timespec="milliseconds"
+        ).replace("+00:00", "Z")
+        if session["last_used_at"] < stale_before:
+            db.execute("UPDATE sessions SET last_used_at=? WHERE id=?", (now, session["session_id"]))
+        if session["last_activity_at"] < stale_before:
+            db.execute("UPDATE users SET last_activity_at=? WHERE id=?", (now, session["user_id"]))
         return view(*args, **kwargs)
     return wrapped
 
@@ -261,7 +274,11 @@ def admin_required(view):
                 db.execute("DELETE FROM admin_sessions WHERE id=?", (session["id"],))
             raise ApiError(401, "Die Admin-Sitzung ist abgelaufen.")
         g.admin = dict(session)
-        db.execute("UPDATE admin_sessions SET last_used_at=? WHERE id=?", (utc_now(), session["id"]))
+        stale_before = (datetime.now(timezone.utc) - timedelta(seconds=AUTH_TOUCH_SECONDS)).isoformat(
+            timespec="milliseconds"
+        ).replace("+00:00", "Z")
+        if session["last_used_at"] < stale_before:
+            db.execute("UPDATE admin_sessions SET last_used_at=? WHERE id=?", (utc_now(), session["id"]))
         return view(*args, **kwargs)
     return wrapped
 
@@ -428,6 +445,7 @@ def make_app():
 
     @app.before_request
     def cors_and_cleanup():
+        global LAST_CLEANUP_AT
         if request.method == "OPTIONS":
             return ("", 204)
         if request.path.startswith("/api/"):
@@ -436,11 +454,18 @@ def make_app():
             enforce_rate_limit("auth", 20, 15 * 60)
         if request.path == "/api/admin/login":
             enforce_rate_limit("admin-login", 5, 15 * 60)
-        now = utc_now()
-        db = get_db()
-        db.execute("DELETE FROM sessions WHERE expires_at<=?", (now,))
-        db.execute("DELETE FROM admin_sessions WHERE expires_at<=?", (now,))
-        db.execute("DELETE FROM action_requests WHERE julianday(created_at)<julianday('now','-2 days')")
+        # Aufräumen war vorher Teil jeder API-Anfrage und erzeugte damit unnötige
+        # SQLite-Schreibsperren. Pro Worker genügt ein Lauf alle 15 Minuten.
+        monotonic_now = time.monotonic()
+        if monotonic_now - LAST_CLEANUP_AT >= CLEANUP_INTERVAL_SECONDS:
+            with CLEANUP_LOCK:
+                if monotonic_now - LAST_CLEANUP_AT >= CLEANUP_INTERVAL_SECONDS:
+                    now = utc_now()
+                    db = get_db()
+                    db.execute("DELETE FROM sessions WHERE expires_at<=?", (now,))
+                    db.execute("DELETE FROM admin_sessions WHERE expires_at<=?", (now,))
+                    db.execute("DELETE FROM action_requests WHERE julianday(created_at)<julianday('now','-2 days')")
+                    LAST_CLEANUP_AT = monotonic_now
 
     @app.after_request
     def cors(response):
@@ -507,7 +532,9 @@ def make_app():
     def me():
         row=get_db().execute("SELECT u.username,u.created_at,u.last_activity_at,u.avatar_filename,b.amount AS balance,s.rounds_played,s.wins,s.losses,s.pushes,s.blackjacks FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id WHERE u.id=?",(g.auth["user_id"],)).fetchone()
         user=dict(row); user["avatarUrl"]=avatar_url(user.pop("avatar_filename"))
-        return ok({"user":user})
+        active_round = load_round(g.auth["user_id"])
+        game = {"round": public_round(active_round, row["balance"]) if active_round else None, "balance": row["balance"]}
+        return ok({"user":user, "game":game})
 
     @app.post("/api/profile/avatar")
     @auth_required
@@ -618,7 +645,9 @@ def make_app():
             if not existing: db.execute("INSERT INTO activity_sessions VALUES (?,?,?,?,?,0)",(g.auth["session_id"],g.auth["user_id"],now,now,int(active)))
             else:
                 elapsed=int((datetime.fromisoformat(now.replace("Z","+00:00"))-datetime.fromisoformat(existing["last_ping_at"].replace("Z","+00:00"))).total_seconds())
-                credited=min(elapsed,45) if active and existing["is_active"] and 0<elapsed<=60 else 0
+                # Der Browser pingt nur noch alle zwei Minuten. Ein großzügiger
+                # Grenzwert toleriert langsame Hosts, ohne Offline-Zeit endlos anzurechnen.
+                credited=min(elapsed,150) if active and existing["is_active"] and 0<elapsed<=240 else 0
                 db.execute("UPDATE activity_sessions SET last_ping_at=?,is_active=?,accrued_seconds=accrued_seconds+? WHERE session_id=?",(now,int(active),credited,g.auth["session_id"]))
                 if credited: db.execute("UPDATE player_stats SET total_play_seconds=total_play_seconds+? WHERE user_id=?",(credited,g.auth["user_id"]))
         return ok({"creditedSeconds":credited})

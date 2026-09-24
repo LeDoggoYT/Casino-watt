@@ -12,6 +12,18 @@ Kostenloses Blackjack mit virtuellem Spielgeld. Das Frontend verwendet jetzt ein
 
 Die alte Node-/Express-Implementierung wurde entfernt. Das Frontend braucht keine API-Änderungen.
 
+## Serverlast
+
+Der laufende Spielzustand bleibt absichtlich serverseitig, damit Browser weder Karten noch Guthaben manipulieren können. Die API ist dennoch auf kleine Hosting-Tarife optimiert:
+
+- Profil und laufende Runde werden beim Login gemeinsam geladen.
+- Die Rangliste aktualisiert sich nur alle 30 Sekunden und pausiert in Hintergrund-Tabs.
+- Aktivität wird alle zwei Minuten statt alle 30 Sekunden übertragen.
+- Sitzungs-Zeitstempel werden höchstens alle fünf Minuten geschrieben.
+- Abgelaufene Datensätze werden höchstens alle 15 Minuten statt bei jeder Anfrage bereinigt.
+
+Damit sinken vor allem die für SQLite teuren Schreibzugriffe sowie die dauerhaften Hintergrundanfragen deutlich; Spielaktionen bleiben serverseitig verbindlich.
+
 ## Lokal starten
 
 Voraussetzung: Python 3.10 oder neuer.

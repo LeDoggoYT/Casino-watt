@@ -5,6 +5,8 @@
 const API_URL = "https://ledoggo.pythonanywhere.com";
 const TOKEN_KEY = "wattCasinoSessionToken";
 const LEADERBOARD_LIMIT = 25;
+const LEADERBOARD_POLL_MS = 30_000;
+const ACTIVITY_PING_MS = 120_000;
 const DEAL_STAGGER = 95;
 const CARD_ANIMATION_MS = 240;
 
@@ -185,7 +187,9 @@ function showSuspended(reason) {
 async function establishSession(token) {
   state.token = token;
   localStorage.setItem(TOKEN_KEY, token);
-  const [me, current] = await Promise.all([api("/api/auth/me"), api("/api/game/current")]);
+  // Profil und ggf. laufende Runde kommen in einer einzigen Anfrage zurück.
+  const me = await api("/api/auth/me");
+  const current = me.game;
   state.user = me.user;
   state.balance = current.balance;
   state.round = current.round;
@@ -581,9 +585,9 @@ function startLeaderboardPolling() {
   stopLeaderboardPolling();
   const poll = async () => {
     await loadLeaderboard();
-    if (state.activeView === "leaderboard") state.leaderboardTimer = setTimeout(poll, document.hidden ? 15000 : 2000);
+    if (state.activeView === "leaderboard" && !document.hidden) state.leaderboardTimer = setTimeout(poll, LEADERBOARD_POLL_MS);
   };
-  state.leaderboardTimer = setTimeout(poll, document.hidden ? 15000 : 2000);
+  if (!document.hidden) state.leaderboardTimer = setTimeout(poll, LEADERBOARD_POLL_MS);
 }
 
 async function openProfile(username) {
@@ -626,7 +630,7 @@ function startHeartbeat() {
   state.heartbeatTimer = setInterval(() => {
     const active = !document.hidden && Date.now() - state.lastInteraction < 60_000;
     sendActivity(active);
-  }, 30_000);
+  }, ACTIVITY_PING_MS);
 }
 
 ui.loginTab.addEventListener("click", () => switchAuthTab("login"));
@@ -673,7 +677,7 @@ ui.leaderboardPrev.addEventListener("click", () => { if (state.leaderboardPage >
 ui.leaderboardNext.addEventListener("click", () => { if (state.leaderboardPage < state.leaderboardPages) { state.leaderboardPage += 1; state.leaderboardSignature = ""; loadLeaderboard(); } });
 ui.profileClose.addEventListener("click", () => ui.profileDialog.close());
 ui.profileDialog.addEventListener("click", (event) => { if (event.target === ui.profileDialog) ui.profileDialog.close(); });
-document.addEventListener("visibilitychange", () => { if (document.hidden) { sendActivity(false); } else { state.lastInteraction = Date.now(); sendActivity(true); if (state.activeView === "leaderboard") startLeaderboardPolling(); } });
+document.addEventListener("visibilitychange", () => { if (document.hidden) { stopLeaderboardPolling(); sendActivity(false); } else { state.lastInteraction = Date.now(); sendActivity(true); if (state.activeView === "leaderboard") { loadLeaderboard(); startLeaderboardPolling(); } } });
 ["click", "keydown", "pointerdown", "touchstart"].forEach((eventName) => document.addEventListener(eventName, () => { state.lastInteraction = Date.now(); }, { passive: true }));
 
 if (state.token) {
