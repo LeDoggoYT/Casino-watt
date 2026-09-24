@@ -80,6 +80,7 @@
       <nav class="main-nav" aria-label="Hauptnavigation">
         <button class="nav-link is-active" type="button" data-view="game">Blackjack</button>
         <button class="nav-link" type="button" data-view="leaderboard">Leaderboard</button>
+        <button class="nav-link" type="button" data-view="upgrades">Upgrades</button>
       </nav>
       <div class="header-account">
         <button class="avatar-button" id="avatar-open" type="button" aria-label="Profilbild auswählen oder ändern">
@@ -140,6 +141,8 @@
               <button class="chip chip--50" type="button" data-bet="50" aria-label="50 Chips setzen"><span>50</span></button>
               <button class="chip chip--100" type="button" data-bet="100" aria-label="100 Chips setzen"><span>100</span></button>
               <button class="chip chip--500" type="button" data-bet="500" aria-label="500 Chips setzen"><span>500</span></button>
+              <button class="chip chip--1000" type="button" data-bet="1000" aria-label="1.000 Chips setzen"><span>1000</span></button>
+              <button class="chip chip--custom" type="button" data-bet="custom" aria-label="Eigenen Chipbetrag festlegen"><span>Betrag</span></button>
               <button class="chip chip--all" type="button" data-bet="all" aria-label="Alle verfügbaren Chips setzen"><span>All in</span></button>
             </div>
           </div>
@@ -188,6 +191,22 @@
       </section>
     </main>
 
+    <main id="upgrades-view" class="app-view upgrades-view" hidden>
+      <section class="upgrades-panel" aria-labelledby="upgrades-title">
+        <header class="section-header upgrades-header">
+          <div><span class="section-kicker">Dauerhafte Vorteile</span><h1 id="upgrades-title">Upgrades</h1><p>Investiere Spielchips und verbessere dein Casino-Konto.</p></div>
+          <div class="upgrade-balance"><span>Verfügbar</span><strong><span id="upgrade-balance">–</span> Chips</strong></div>
+        </header>
+        <div class="daily-bonus" id="daily-bonus">
+          <div><span class="section-kicker">Tägliche Belohnung</span><strong id="daily-bonus-title">Tagesbonus nicht freigeschaltet</strong><small id="daily-bonus-status">Kaufe das Tagesbonus-Upgrade, um täglich Chips abzuholen.</small></div>
+          <button id="daily-bonus-claim" type="button" disabled>Abholen</button>
+        </div>
+        <p class="upgrades-message" id="upgrades-message" role="status" aria-live="polite"></p>
+        <div class="upgrade-grid" id="upgrade-grid" aria-live="polite"></div>
+        <p class="upgrade-loading" id="upgrade-loading">Upgrades werden geladen …</p>
+      </section>
+    </main>
+
     <footer class="site-footer"><span>Watt Casino</span><p>Kostenloses Blackjack · Ausschließlich Spielgeld · Keine Registrierung mit Echtgeldbezug</p></footer>
   </div>
 
@@ -231,6 +250,22 @@
         <button class="avatar-save" id="avatar-save" type="button" disabled>Profilbild speichern</button>
       </footer>
     </div>
+  </dialog>
+
+  <dialog class="custom-bet-dialog" id="custom-bet-dialog" aria-labelledby="custom-bet-title">
+    <form class="custom-bet-form" id="custom-bet-form" method="dialog">
+      <header class="profile-header">
+        <div><span class="section-kicker">Eigener Chip</span><h2 id="custom-bet-title">Wunschbetrag setzen</h2></div>
+        <button class="modal-close" id="custom-bet-close" type="button" aria-label="Dialog schließen">×</button>
+      </header>
+      <label class="custom-bet-field" for="custom-bet-input"><span>Betrag in Chips</span><input id="custom-bet-input" name="amount" type="number" min="5" step="0.5" inputmode="decimal" required></label>
+      <p class="custom-bet-hint">Der Betrag wird zum aktuellen Einsatz hinzugefügt.</p>
+      <p class="avatar-error" id="custom-bet-error" role="alert"></p>
+      <footer class="avatar-actions">
+        <button class="avatar-cancel" id="custom-bet-cancel" type="button">Abbrechen</button>
+        <button class="avatar-save" type="submit">Betrag setzen</button>
+      </footer>
+    </form>
   </dialog>
 
   <script src="script.js" defer></script>

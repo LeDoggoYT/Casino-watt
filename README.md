@@ -24,6 +24,14 @@ Der laufende Spielzustand bleibt absichtlich serverseitig, damit Browser weder K
 
 Damit sinken vor allem die für SQLite teuren Schreibzugriffe sowie die dauerhaften Hintergrundanfragen deutlich; Spielaktionen bleiben serverseitig verbindlich.
 
+## Upgrades und Einsätze
+
+Spieler können im Bereich **Upgrades** Chips in sieben dauerhafte Verbesserungen investieren: Startkapital, Glück, Blackjack-Bonus, Verlustschutz, Serienbonus, Doppel-Profi und Tagesbonus. Käufe, Level, Tagesbonus und alle Auswirkungen auf Auszahlungen werden serverseitig gespeichert und berechnet. Jedes Upgrade besitzt fünf Level; der Preis verdoppelt sich nach jedem Kauf.
+
+Neben den festen Chips gibt es einen 1.000er-Chip und einen frei wählbaren Betrag. Eigene Einsätze müssen mindestens 5 Chips betragen, dürfen das verfügbare Guthaben nicht überschreiten und werden auf halbe Chips gerundet.
+
+Die Anmeldung bleibt im Browser gespeichert und verlängert sich bei aktiver Nutzung automatisch um weitere 30 Tage. Kurzzeitige Verbindungsfehler löschen die Sitzung nicht mehr; das Frontend versucht die Verbindung automatisch erneut aufzubauen. Nur Abmelden, eine Kontosperre oder eine tatsächlich abgelaufene/ungültige Sitzung entfernt das lokale Sitzungstoken.
+
 ## Lokal starten
 
 Voraussetzung: Python 3.10 oder neuer.

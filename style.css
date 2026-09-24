@@ -547,6 +547,9 @@ a:focus-visible {
 .chip--50 { background: #31353b; box-shadow: inset 0 0 0 4px #31353b, inset 0 0 0 5px rgb(240 230 202 / 43%), 0 4px 9px rgb(0 0 0 / 24%); }
 .chip--100 { background: #e7dfcd; color: #272925; box-shadow: inset 0 0 0 4px #e7dfcd, inset 0 0 0 5px rgb(42 43 39 / 36%), 0 4px 9px rgb(0 0 0 / 24%); }
 .chip--500 { background: #53346a; box-shadow: inset 0 0 0 4px #53346a, inset 0 0 0 5px rgb(240 230 202 / 43%), 0 4px 9px rgb(0 0 0 / 24%); }
+.chip--1000 { background: #24574f; box-shadow: inset 0 0 0 4px #24574f, inset 0 0 0 5px rgb(240 230 202 / 43%), 0 4px 9px rgb(0 0 0 / 24%); }
+.chip--custom { background: #3d516d; box-shadow: inset 0 0 0 4px #3d516d, inset 0 0 0 5px rgb(240 230 202 / 43%), 0 4px 9px rgb(0 0 0 / 24%); }
+.chip--custom span { font-size: 8px; text-transform: uppercase; }
 .chip--all { background: #5c1d21; box-shadow: inset 0 0 0 4px #5c1d21, inset 0 0 0 5px rgb(240 230 202 / 43%), 0 4px 9px rgb(0 0 0 / 24%); }
 .chip--all span { font-size: 9px; text-transform: uppercase; }
 
@@ -970,6 +973,38 @@ a:focus-visible {
 .avatar-actions { display: flex; gap: 10px; margin-top: 12px; justify-content: flex-end; }
 .avatar-cancel { color: #c8c5bb; background: transparent; }
 
+.upgrades-view { width: min(1120px, 94vw); margin: 32px auto; }
+.upgrades-panel { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow); }
+.upgrades-header { min-height: 138px; }
+.upgrade-balance { display: grid; min-width: 190px; gap: 5px; padding: 17px 20px; border: 1px solid var(--line); border-radius: 8px; background: rgb(0 0 0 / 16%); text-align: right; }
+.upgrade-balance span { color: var(--muted); font: 700 10px/1 Arial, Helvetica, sans-serif; letter-spacing: .1em; text-transform: uppercase; }
+.upgrade-balance strong { color: var(--cream); font-size: 20px; }
+.daily-bonus { display: flex; min-height: 96px; padding: 20px 28px; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); background: linear-gradient(100deg, rgb(126 97 48 / 18%), transparent); }
+.daily-bonus > div { display: grid; gap: 5px; }
+.daily-bonus strong { color: var(--cream); font-size: 16px; }
+.daily-bonus small { color: var(--muted); }
+.daily-bonus button, .upgrade-card button { min-height: 40px; padding: 0 18px; border: 1px solid #9b7b43; border-radius: 5px; color: #171813; background: var(--gold); cursor: pointer; font: 700 11px/1 Arial, Helvetica, sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+.daily-bonus button:disabled, .upgrade-card button:disabled { border-color: var(--line); color: #777a71; background: #2a2d29; cursor: not-allowed; }
+.upgrades-message { min-height: 20px; margin: 15px 28px 0; color: var(--gold); font: 700 12px/1.4 Arial, Helvetica, sans-serif; }
+.upgrade-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 12px 28px 30px; }
+.upgrade-card { display: grid; min-height: 230px; padding: 21px; gap: 16px; border: 1px solid var(--line); border-radius: 8px; background: #1c1f1c; }
+.upgrade-card-top { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
+.upgrade-card h2 { margin: 5px 0 0; color: var(--cream); font-size: 19px; }
+.upgrade-card p { margin: 0; color: var(--muted); font: 13px/1.55 Arial, Helvetica, sans-serif; }
+.upgrade-level { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border: 1px solid #856a3c; border-radius: 50%; color: var(--gold); font-weight: 800; }
+.upgrade-progress { height: 5px; overflow: hidden; border-radius: 9px; background: #30332e; }
+.upgrade-progress span { display: block; height: 100%; border-radius: inherit; background: var(--gold); }
+.upgrade-card button { align-self: end; width: 100%; }
+.upgrade-loading { padding: 35px; color: var(--muted); text-align: center; }
+
+.custom-bet-dialog { width: min(430px, calc(100vw - 28px)); padding: 0; border: 1px solid var(--line); border-radius: 10px; color: var(--cream); background: var(--panel); box-shadow: var(--shadow); }
+.custom-bet-dialog::backdrop { background: rgb(6 8 7 / 78%); backdrop-filter: blur(3px); }
+.custom-bet-form { padding: 25px; }
+.custom-bet-field { display: grid; gap: 9px; margin-top: 24px; color: var(--muted); font: 700 11px/1 Arial, Helvetica, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.custom-bet-field input { width: 100%; height: 48px; padding: 0 13px; border: 1px solid var(--line); border-radius: 5px; color: var(--cream); background: #151715; font: 700 18px/1 Georgia, serif; }
+.custom-bet-field input:focus { border-color: var(--gold); outline: none; }
+.custom-bet-hint { margin: 11px 0 0; color: var(--muted); font: 12px/1.5 Arial, Helvetica, sans-serif; }
+
 @media (max-width: 640px) {
   .auth-screen { padding: 14px; align-items: start; }
   .auth-card { margin-top: 34px; padding: 26px 22px; }
@@ -990,6 +1025,21 @@ a:focus-visible {
   .connection-status { padding-top: 5px; font-size: 10px; }
   .leaderboard-table th, .leaderboard-table td { padding: 13px 12px; white-space: nowrap; }
   .leaderboard-table th:nth-child(4), .leaderboard-table td:nth-child(4) { display: none; }
+  .upgrades-view { width: 100%; margin: 0; }
+  .upgrades-panel { border-right: 0; border-left: 0; border-radius: 0; }
+  .upgrades-header { align-items: start; }
+  .upgrade-balance { min-width: 0; text-align: left; }
+  .daily-bonus { align-items: stretch; flex-direction: column; }
+  .upgrade-grid { grid-template-columns: 1fr; padding: 12px 16px 24px; }
   .profile-shell { padding: 22px 18px; }
   .profile-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 641px) and (max-width: 980px) {
+  .upgrade-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 440px) {
+  .brand-name { display: none; }
+  .nav-link { padding: 0 6px; font-size: 8px; }
 }

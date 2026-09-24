@@ -3,6 +3,7 @@ from io import BytesIO
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 TEMP_DB = Path(tempfile.gettempdir()) / "watt-casino-python-api-test.sqlite"
 for suffix in ("", "-shm", "-wal"):
@@ -24,6 +25,12 @@ class WattCasinoApiTests(unittest.TestCase):
             headers["Authorization"] = f"Bearer {token}"
         return self.client.open(path, method=method, json=payload, headers=headers)
 
+    @staticmethod
+    def non_terminal_shoe():
+        card = lambda rank: {"rank": rank, "suit": "♠"}
+        # draw() nimmt vom Ende: Spieler 10/7, Dealer 9/8.
+        return [card("2"), card("3"), card("8"), card("9"), card("7"), card("10")]
+
     def test_auth_game_admin_and_suspension(self):
         player = {"username": "PythonPlayer", "password": "SicheresTestpasswort9"}
         registered = self.request("POST", "/api/auth/register", player)
@@ -34,7 +41,8 @@ class WattCasinoApiTests(unittest.TestCase):
         self.assertEqual(me.status_code, 200)
         self.assertEqual(me.get_json()["data"]["user"]["balance"], 1000)
 
-        game = self.request("POST", "/api/game/start", {"bet": 25, "actionId": "python-start-action-0001"}, token)
+        with patch("app.create_shoe", side_effect=self.non_terminal_shoe):
+            game = self.request("POST", "/api/game/start", {"bet": 25, "actionId": "python-start-action-0001"}, token)
         self.assertEqual(game.status_code, 201)
         self.assertTrue(game.get_json()["success"])
 
@@ -102,6 +110,157 @@ class WattCasinoApiTests(unittest.TestCase):
         self.assertEqual(determine_outcome([card("A"), card("K")], [card("10"), card("9")]), "blackjack")
         self.assertEqual(determine_outcome([card("K"), card("Q"), card("2")], [card("10"), card("7")]), "loss")
         self.assertEqual(determine_outcome([card("10"), card("8")], [card("K"), card("8")]), "push")
+
+    def test_upgrades_purchase_daily_claim_and_active_round_lock(self):
+        player = {"username": "UpgradePlayer", "password": "SicheresTestpasswort9"}
+        token = self.request("POST", "/api/auth/register", player).get_json()["data"]["token"]
+
+        initial = self.request("GET", "/api/upgrades", token=token)
+        self.assertEqual(initial.status_code, 200)
+        self.assertEqual(len(initial.get_json()["data"]["upgrades"]), 7)
+        self.assertFalse(initial.get_json()["data"]["dailyBonus"]["available"])
+
+        bought = self.request(
+            "POST",
+            "/api/upgrades/daily_bonus/buy",
+            {"actionId": "upgrade-daily-buy-0001"},
+            token,
+        )
+        self.assertEqual(bought.status_code, 200)
+        bought_data = bought.get_json()["data"]
+        daily = next(item for item in bought_data["upgrades"] if item["key"] == "daily_bonus")
+        self.assertEqual(daily["level"], 1)
+        self.assertEqual(bought_data["balance"], 500)
+        self.assertTrue(bought_data["dailyBonus"]["available"])
+
+        duplicate_buy = self.request(
+            "POST",
+            "/api/upgrades/daily_bonus/buy",
+            {"actionId": "upgrade-daily-buy-0001"},
+            token,
+        )
+        self.assertEqual(duplicate_buy.status_code, 409)
+
+        claimed = self.request(
+            "POST",
+            "/api/upgrades/daily-bonus/claim",
+            {"actionId": "upgrade-daily-claim-01"},
+            token,
+        )
+        self.assertEqual(claimed.status_code, 200)
+        self.assertEqual(claimed.get_json()["data"]["balance"], 550)
+        self.assertFalse(claimed.get_json()["data"]["dailyBonus"]["available"])
+
+        claimed_again = self.request(
+            "POST",
+            "/api/upgrades/daily-bonus/claim",
+            {"actionId": "upgrade-daily-claim-02"},
+            token,
+        )
+        self.assertEqual(claimed_again.status_code, 409)
+
+        with patch("app.create_shoe", side_effect=self.non_terminal_shoe):
+            started = self.request(
+                "POST",
+                "/api/game/start",
+                {"bet": 5, "actionId": "upgrade-round-start-01"},
+                token,
+            )
+        self.assertEqual(started.status_code, 201)
+        blocked = self.request(
+            "POST",
+            "/api/upgrades/starting_capital/buy",
+            {"actionId": "upgrade-blocked-buy-01"},
+            token,
+        )
+        self.assertEqual(blocked.status_code, 409)
+
+    def test_starting_capital_upgrade_changes_refill_amount(self):
+        player = {"username": "CapitalPlayer", "password": "SicheresTestpasswort9"}
+        token = self.request("POST", "/api/auth/register", player).get_json()["data"]["token"]
+        bought = self.request(
+            "POST",
+            "/api/upgrades/starting_capital/buy",
+            {"actionId": "capital-upgrade-buy-001"},
+            token,
+        )
+        self.assertEqual(bought.status_code, 200)
+        self.assertEqual(bought.get_json()["data"]["balance"], 250)
+
+        card = lambda rank: {"rank": rank, "suit": "♠"}
+        losing_shoe = [card("2"), card("3"), card("10"), card("10"), card("7"), card("10")]
+        with patch("app.create_shoe", return_value=losing_shoe):
+            started = self.request(
+                "POST",
+                "/api/game/start",
+                {"bet": 250, "actionId": "capital-round-start-001"},
+                token,
+            )
+        self.assertEqual(started.status_code, 201)
+        finished = self.request(
+            "POST",
+            "/api/game/stand",
+            {"actionId": "capital-round-stand-001"},
+            token,
+        )
+        self.assertEqual(finished.status_code, 200)
+        self.assertEqual(finished.get_json()["data"]["round"]["result"]["outcome"], "loss")
+        self.assertEqual(finished.get_json()["data"]["balance"], 1250)
+
+    def test_luck_can_rescue_only_once_per_round(self):
+        player = {"username": "LuckyPlayer", "password": "SicheresTestpasswort9"}
+        token = self.request("POST", "/api/auth/register", player).get_json()["data"]["token"]
+        admin_token = self.request("POST", "/api/admin/login", {"password": "2011"}).get_json()["data"]["token"]
+        players = self.request("GET", "/api/admin/players", token=admin_token).get_json()["data"]["players"]
+        player_id = next(row["id"] for row in players if row["username"] == "LuckyPlayer")
+        funded = self.request(
+            "PATCH",
+            f"/api/admin/players/{player_id}/balance",
+            {"amount": 5000, "reason": "Upgrade-Test"},
+            admin_token,
+        )
+        self.assertEqual(funded.status_code, 200)
+        bought = self.request(
+            "POST",
+            "/api/upgrades/luck/buy",
+            {"actionId": "luck-upgrade-buy-00001"},
+            token,
+        )
+        self.assertEqual(bought.status_code, 200)
+
+        card = lambda rank: {"rank": rank, "suit": "♠"}
+        # Spieler 10/6, Dealer 10/7, danach K (Bust), 4 (Rettung), 3 (zweiter Bust).
+        lucky_shoe = [card("2"), card("3"), card("4"), card("K"), card("7"), card("10"), card("6"), card("10")]
+        with patch("app.create_shoe", return_value=lucky_shoe):
+            started = self.request(
+                "POST",
+                "/api/game/start",
+                {"bet": 10, "actionId": "luck-round-start-0001"},
+                token,
+            )
+        self.assertEqual(started.status_code, 201)
+        with patch("app.secrets.randbelow", return_value=0):
+            rescued = self.request(
+                "POST",
+                "/api/game/hit",
+                {"actionId": "luck-round-first-hit-01"},
+                token,
+            )
+        rescued_round = rescued.get_json()["data"]["round"]
+        self.assertEqual(rescued.status_code, 200)
+        self.assertEqual(rescued_round["status"], "active")
+        self.assertEqual(rescued_round["playerValue"], 20)
+        self.assertIn("Glück", rescued_round["notice"])
+
+        with patch("app.secrets.randbelow", return_value=0):
+            second_hit = self.request(
+                "POST",
+                "/api/game/hit",
+                {"actionId": "luck-round-second-hit-1"},
+                token,
+            )
+        self.assertEqual(second_hit.status_code, 200)
+        self.assertEqual(second_hit.get_json()["data"]["round"]["result"]["outcome"], "loss")
 
 
 if __name__ == "__main__":

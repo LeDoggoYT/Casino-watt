@@ -38,7 +38,7 @@ const ui = {
   cropZoom: document.querySelector("#crop-zoom"),
   logout: document.querySelector("#logout"),
   navLinks: [...document.querySelectorAll(".nav-link")],
-  views: { game: document.querySelector("#game-view"), leaderboard: document.querySelector("#leaderboard-view") },
+  views: { game: document.querySelector("#game-view"), leaderboard: document.querySelector("#leaderboard-view"), upgrades: document.querySelector("#upgrades-view") },
   balance: document.querySelector("#balance"),
   currentBet: document.querySelector("#current-bet"),
   dealerCards: document.querySelector("#dealer-cards"),
@@ -64,7 +64,20 @@ const ui = {
   profileDialog: document.querySelector("#profile-dialog"),
   profileClose: document.querySelector("#profile-close"),
   profileLoading: document.querySelector("#profile-loading"),
-  profileContent: document.querySelector("#profile-content")
+  profileContent: document.querySelector("#profile-content"),
+  upgradeBalance: document.querySelector("#upgrade-balance"),
+  upgradeGrid: document.querySelector("#upgrade-grid"),
+  upgradeLoading: document.querySelector("#upgrade-loading"),
+  upgradesMessage: document.querySelector("#upgrades-message"),
+  dailyBonusTitle: document.querySelector("#daily-bonus-title"),
+  dailyBonusStatus: document.querySelector("#daily-bonus-status"),
+  dailyBonusClaim: document.querySelector("#daily-bonus-claim"),
+  customBetDialog: document.querySelector("#custom-bet-dialog"),
+  customBetForm: document.querySelector("#custom-bet-form"),
+  customBetInput: document.querySelector("#custom-bet-input"),
+  customBetError: document.querySelector("#custom-bet-error"),
+  customBetClose: document.querySelector("#custom-bet-close"),
+  customBetCancel: document.querySelector("#custom-bet-cancel")
 };
 
 const state = {
@@ -82,6 +95,8 @@ const state = {
   leaderboardSignature: "",
   lastInteraction: Date.now(),
   heartbeatTimer: null,
+  upgrades: null,
+  sessionRetryTimer: null,
   avatarCrop: { image: null, zoom: 1, x: 0, y: 0, baseScale: 1, dragging: false, pointerX: 0, pointerY: 0 }
 };
 
@@ -166,6 +181,9 @@ function clearSession() {
   state.balance = 0;
   state.selectedBet = 0;
   state.settled = false;
+  state.upgrades = null;
+  if (state.sessionRetryTimer) clearTimeout(state.sessionRetryTimer);
+  state.sessionRetryTimer = null;
   stopLeaderboardPolling();
   stopHeartbeat();
   ui.app.hidden = true;
@@ -200,8 +218,21 @@ async function establishSession(token) {
   ui.authScreen.hidden = true;
   ui.suspendedScreen.hidden = true;
   ui.app.hidden = false;
+  setFormMessage(ui.loginMessage);
+  if (state.sessionRetryTimer) clearTimeout(state.sessionRetryTimer);
+  state.sessionRetryTimer = null;
   renderGame(false);
   startHeartbeat();
+}
+
+function resumeCachedSession() {
+  if (!state.token || state.user) return;
+  establishSession(state.token).catch((error) => {
+    if (error.suspended || !state.token) return;
+    setFormMessage(ui.loginMessage, `${error.message} Erneuter Versuch läuft automatisch.`);
+    if (state.sessionRetryTimer) clearTimeout(state.sessionRetryTimer);
+    state.sessionRetryTimer = setTimeout(resumeCachedSession, 10_000);
+  });
 }
 
 async function submitAuth(event, endpoint, form, messageElement) {
@@ -463,7 +494,7 @@ async function renderGame(animate = false) {
     setMessage(labels[result.outcome], result.message, result.outcome === "loss" ? "loss" : result.outcome === "push" ? "neutral" : "win");
   } else {
     state.settled = false;
-    setMessage("Ihre Entscheidung", "Karte nehmen, halten oder verdoppeln.");
+    setMessage(round.notice ? "Glück aktiviert" : "Ihre Entscheidung", round.notice || "Karte nehmen, halten oder verdoppeln.", round.notice ? "win" : "neutral");
   }
   updateControls();
 }
@@ -473,7 +504,7 @@ function updateControls() {
   const isPlaying = state.round?.status === "active";
   const available = state.balance - state.selectedBet;
   ui.chips.forEach((chip) => {
-    const amount = chip.dataset.bet === "all" ? available : Number(chip.dataset.bet);
+    const amount = chip.dataset.bet === "all" ? available : chip.dataset.bet === "custom" ? 5 : Number(chip.dataset.bet);
     chip.disabled = state.busy || !isBetting || amount <= 0 || amount > available;
   });
   ui.clearBet.disabled = state.busy || !isBetting || state.selectedBet === 0;
@@ -487,6 +518,10 @@ function updateControls() {
 
 function addBet(value) {
   if (state.busy || state.round || state.settled) return;
+  if (value === "custom") {
+    openCustomBet();
+    return;
+  }
   const available = state.balance - state.selectedBet;
   const amount = value === "all" ? available : Number(value);
   if (!Number.isFinite(amount) || amount <= 0 || amount > available) return;
@@ -494,6 +529,29 @@ function addBet(value) {
   setMessage("Einsatz bereit", `${formatChips(state.selectedBet)} Chips liegen auf dem Tisch.`);
   updateControls();
   ui.currentBet.textContent = formatChips(state.selectedBet);
+}
+
+function openCustomBet() {
+  const available = state.balance - state.selectedBet;
+  if (available < 5) return;
+  ui.customBetInput.max = String(available);
+  ui.customBetInput.value = String(Math.min(available, 100));
+  ui.customBetError.textContent = "";
+  ui.customBetDialog.showModal();
+  ui.customBetInput.focus();
+  ui.customBetInput.select();
+}
+
+function submitCustomBet(event) {
+  event.preventDefault();
+  const available = state.balance - state.selectedBet;
+  const amount = Number(ui.customBetInput.value.replace?.(",", ".") ?? ui.customBetInput.value);
+  if (!Number.isFinite(amount) || amount < 5 || amount > available || amount * 2 !== Math.round(amount * 2)) {
+    ui.customBetError.textContent = `Bitte einen Betrag zwischen 5 und ${formatChips(available)} in 0,5er-Schritten eingeben.`;
+    return;
+  }
+  ui.customBetDialog.close();
+  addBet(String(amount));
 }
 
 async function gameRequest(path, body = {}) {
@@ -528,6 +586,87 @@ function setView(view) {
   ui.navLinks.forEach((link) => link.classList.toggle("is-active", link.dataset.view === view));
   if (view === "leaderboard") { state.leaderboardPage = 1; loadLeaderboard(); startLeaderboardPolling(); }
   else stopLeaderboardPolling();
+  if (view === "upgrades") loadUpgrades();
+}
+
+function renderUpgrades(data) {
+  state.upgrades = data;
+  state.balance = data.balance;
+  if (!state.round && state.selectedBet > state.balance) state.selectedBet = 0;
+  ui.balance.textContent = formatChips(state.balance);
+  ui.currentBet.textContent = formatChips(state.round?.bet ?? state.selectedBet);
+  updateControls();
+  ui.upgradeBalance.textContent = formatChips(data.balance);
+  ui.upgradeLoading.hidden = true;
+  const cards = document.createDocumentFragment();
+  for (const upgrade of data.upgrades) {
+    const card = document.createElement("article");
+    card.className = "upgrade-card";
+    const maxed = upgrade.level >= upgrade.maxLevel;
+    card.innerHTML = `<div class="upgrade-card-top"><div><span class="section-kicker">Level ${upgrade.level} / ${upgrade.maxLevel}</span><h2>${escapeHtml(upgrade.name)}</h2></div><span class="upgrade-level">${upgrade.level}</span></div><p>${escapeHtml(upgrade.effect)}</p><div class="upgrade-progress" aria-label="${upgrade.level} von ${upgrade.maxLevel} Leveln"><span style="width:${(upgrade.level / upgrade.maxLevel) * 100}%"></span></div><button type="button" ${maxed || !upgrade.canBuy ? "disabled" : ""}>${maxed ? "Maximallevel" : `${formatChips(upgrade.price)} Chips`}</button>`;
+    if (!maxed) card.querySelector("button").addEventListener("click", () => buyUpgrade(upgrade.key));
+    cards.append(card);
+  }
+  ui.upgradeGrid.replaceChildren(cards);
+
+  const dailyLevel = data.upgrades.find((upgrade) => upgrade.key === "daily_bonus")?.level ?? 0;
+  if (!dailyLevel) {
+    ui.dailyBonusTitle.textContent = "Tagesbonus nicht freigeschaltet";
+    ui.dailyBonusStatus.textContent = "Kaufe das Tagesbonus-Upgrade, um täglich Chips abzuholen.";
+  } else if (data.roundActive) {
+    ui.dailyBonusTitle.textContent = "Runde zuerst abschließen";
+    ui.dailyBonusStatus.textContent = "Käufe und Tagesbonus sind während einer laufenden Runde pausiert.";
+  } else if (data.dailyBonus.available) {
+    ui.dailyBonusTitle.textContent = `${formatChips(data.dailyBonus.amount)} Chips sind bereit`;
+    ui.dailyBonusStatus.textContent = "Deine tägliche Belohnung kann jetzt abgeholt werden.";
+  } else {
+    ui.dailyBonusTitle.textContent = "Tagesbonus bereits abgeholt";
+    ui.dailyBonusStatus.textContent = `Wieder verfügbar: ${formatDate(data.dailyBonus.nextClaimAt)}`;
+  }
+  ui.dailyBonusClaim.disabled = data.roundActive || !data.dailyBonus.available;
+}
+
+async function loadUpgrades() {
+  if (!state.token || state.activeView !== "upgrades") return;
+  ui.upgradeLoading.hidden = Boolean(state.upgrades);
+  try {
+    renderUpgrades(await api("/api/upgrades"));
+  } catch (error) {
+    ui.upgradeLoading.hidden = false;
+    ui.upgradeLoading.textContent = error.message;
+  }
+}
+
+async function buyUpgrade(key) {
+  if (state.busy) return;
+  state.busy = true;
+  ui.upgradesMessage.textContent = "Upgrade wird gekauft …";
+  try {
+    const data = await api(`/api/upgrades/${encodeURIComponent(key)}/buy`, { method: "POST", body: JSON.stringify({ actionId: actionId() }) });
+    renderUpgrades(data);
+    ui.upgradesMessage.textContent = "Upgrade erfolgreich verbessert.";
+  } catch (error) {
+    ui.upgradesMessage.textContent = error.message;
+  } finally {
+    state.busy = false;
+    updateControls();
+  }
+}
+
+async function claimDailyBonus() {
+  if (state.busy || ui.dailyBonusClaim.disabled) return;
+  state.busy = true;
+  ui.dailyBonusClaim.disabled = true;
+  try {
+    const data = await api("/api/upgrades/daily-bonus/claim", { method: "POST", body: JSON.stringify({ actionId: actionId() }) });
+    renderUpgrades(data);
+    ui.upgradesMessage.textContent = `${formatChips(data.dailyBonus.amount)} Chips Tagesbonus wurden gutgeschrieben.`;
+  } catch (error) {
+    ui.upgradesMessage.textContent = error.message;
+  } finally {
+    state.busy = false;
+    updateControls();
+  }
 }
 
 function statusOnline(online) {
@@ -673,6 +812,11 @@ ui.hit.addEventListener("click", () => gameRequest("/api/game/hit"));
 ui.stand.addEventListener("click", () => gameRequest("/api/game/stand"));
 ui.double.addEventListener("click", () => gameRequest("/api/game/double"));
 ui.newRound.addEventListener("click", newRound);
+ui.customBetForm.addEventListener("submit", submitCustomBet);
+ui.customBetClose.addEventListener("click", () => ui.customBetDialog.close());
+ui.customBetCancel.addEventListener("click", () => ui.customBetDialog.close());
+ui.customBetDialog.addEventListener("click", (event) => { if (event.target === ui.customBetDialog) ui.customBetDialog.close(); });
+ui.dailyBonusClaim.addEventListener("click", claimDailyBonus);
 ui.leaderboardPrev.addEventListener("click", () => { if (state.leaderboardPage > 1) { state.leaderboardPage -= 1; state.leaderboardSignature = ""; loadLeaderboard(); } });
 ui.leaderboardNext.addEventListener("click", () => { if (state.leaderboardPage < state.leaderboardPages) { state.leaderboardPage += 1; state.leaderboardSignature = ""; loadLeaderboard(); } });
 ui.profileClose.addEventListener("click", () => ui.profileDialog.close());
@@ -680,10 +824,4 @@ ui.profileDialog.addEventListener("click", (event) => { if (event.target === ui.
 document.addEventListener("visibilitychange", () => { if (document.hidden) { stopLeaderboardPolling(); sendActivity(false); } else { state.lastInteraction = Date.now(); sendActivity(true); if (state.activeView === "leaderboard") { loadLeaderboard(); startLeaderboardPolling(); } } });
 ["click", "keydown", "pointerdown", "touchstart"].forEach((eventName) => document.addEventListener(eventName, () => { state.lastInteraction = Date.now(); }, { passive: true }));
 
-if (state.token) {
-  establishSession(state.token).catch((error) => {
-    if (error.suspended) return;
-    clearSession();
-    setFormMessage(ui.loginMessage, error.message);
-  });
-}
+if (state.token) resumeCachedSession();

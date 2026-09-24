@@ -30,6 +30,16 @@ CLEANUP_LOCK = threading.Lock()
 LAST_CLEANUP_AT = 0.0
 AUTH_TOUCH_SECONDS = 5 * 60
 CLEANUP_INTERVAL_SECONDS = 15 * 60
+MAX_UPGRADE_LEVEL = 5
+UPGRADES = {
+    "starting_capital": {"name": "Startkapital", "base_cost": 750, "effect": "+250 Chips Neustartkapital je Level"},
+    "luck": {"name": "Glück", "base_cost": 1500, "effect": "+2 % Rettungschance je Level"},
+    "blackjack_bonus": {"name": "Blackjack-Bonus", "base_cost": 2000, "effect": "+5 % Auszahlung je Level"},
+    "loss_protection": {"name": "Verlustschutz", "base_cost": 1250, "effect": "2 % Einsatz zurück je Level"},
+    "streak_bonus": {"name": "Serienbonus", "base_cost": 1500, "effect": "+3 % ab dem dritten Sieg je Level"},
+    "double_bonus": {"name": "Doppel-Profi", "base_cost": 1750, "effect": "+5 % bei gewonnenem Verdoppeln je Level"},
+    "daily_bonus": {"name": "Tagesbonus", "base_cost": 500, "effect": "50 Chips täglich je Level"},
+}
 
 
 class ApiError(Exception):
@@ -129,7 +139,8 @@ CREATE TABLE IF NOT EXISTS player_stats (
  current_streak INTEGER NOT NULL DEFAULT 0, best_win_streak INTEGER NOT NULL DEFAULT 0, total_play_seconds INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS active_rounds (
  id TEXT PRIMARY KEY, user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE, bet REAL NOT NULL CHECK (bet > 0),
- deck_json TEXT NOT NULL, player_cards_json TEXT NOT NULL, dealer_cards_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+ deck_json TEXT NOT NULL, player_cards_json TEXT NOT NULL, dealer_cards_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+ luck_used INTEGER NOT NULL DEFAULT 0 CHECK (luck_used IN (0,1)), doubled INTEGER NOT NULL DEFAULT 0 CHECK (doubled IN (0,1)));
 CREATE TABLE IF NOT EXISTS completed_rounds (
  id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, bet REAL NOT NULL,
  outcome TEXT NOT NULL CHECK (outcome IN ('win','loss','push','blackjack')), player_cards_json TEXT NOT NULL,
@@ -141,6 +152,11 @@ CREATE TABLE IF NOT EXISTS action_requests (
 CREATE TABLE IF NOT EXISTS activity_sessions (
  session_id INTEGER PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  started_at TEXT NOT NULL, last_ping_at TEXT NOT NULL, is_active INTEGER NOT NULL DEFAULT 1, accrued_seconds INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS user_upgrades (
+ user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, upgrade_key TEXT NOT NULL, level INTEGER NOT NULL DEFAULT 0,
+ updated_at TEXT NOT NULL, PRIMARY KEY (user_id, upgrade_key), CHECK (level BETWEEN 0 AND 5));
+CREATE TABLE IF NOT EXISTS upgrade_claims (
+ user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, last_daily_claim_at TEXT);
 CREATE TABLE IF NOT EXISTS admin_sessions (
  id INTEGER PRIMARY KEY AUTOINCREMENT, token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, last_used_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS admin_audit_log (
@@ -153,6 +169,7 @@ CREATE INDEX IF NOT EXISTS idx_balances_leaderboard ON balances(amount DESC, use
 CREATE INDEX IF NOT EXISTS idx_completed_user_date ON completed_rounds(user_id, completed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_action_requests_created ON action_requests(created_at);
 CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_upgrades_user ON user_upgrades(user_id);
 CREATE INDEX IF NOT EXISTS idx_admin_sessions_token ON admin_sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_admin_audit_target ON admin_audit_log(target_user_id, created_at DESC);
 """
@@ -171,6 +188,11 @@ def initialise_database(app: Flask) -> None:
             columns = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
             if name not in columns:
                 db.execute(f"ALTER TABLE users ADD COLUMN {name} {definition}")
+        active_round_columns = {row["name"] for row in db.execute("PRAGMA table_info(active_rounds)")}
+        if "luck_used" not in active_round_columns:
+            db.execute("ALTER TABLE active_rounds ADD COLUMN luck_used INTEGER NOT NULL DEFAULT 0 CHECK (luck_used IN (0,1))")
+        if "doubled" not in active_round_columns:
+            db.execute("ALTER TABLE active_rounds ADD COLUMN doubled INTEGER NOT NULL DEFAULT 0 CHECK (doubled IN (0,1))")
 
 
 def ok(data: dict | None = None, message: str = "", status: int = 200):
@@ -253,7 +275,11 @@ def auth_required(view):
             timespec="milliseconds"
         ).replace("+00:00", "Z")
         if session["last_used_at"] < stale_before:
-            db.execute("UPDATE sessions SET last_used_at=? WHERE id=?", (now, session["session_id"]))
+            renewed_until = (datetime.now(timezone.utc) + timedelta(days=SESSION_DAYS)).isoformat(
+                timespec="milliseconds"
+            ).replace("+00:00", "Z")
+            db.execute("UPDATE sessions SET last_used_at=?,expires_at=? WHERE id=?",
+                       (now, renewed_until, session["session_id"]))
         if session["last_activity_at"] < stale_before:
             db.execute("UPDATE users SET last_activity_at=? WHERE id=?", (now, session["user_id"]))
         return view(*args, **kwargs)
@@ -341,7 +367,8 @@ def parse_round(row):
     if not row: return None
     return {"id": row["id"], "userId": row["user_id"], "bet": row["bet"], "deck": json.loads(row["deck_json"]),
             "playerCards": json.loads(row["player_cards_json"]), "dealerCards": json.loads(row["dealer_cards_json"]),
-            "createdAt": row["created_at"], "updatedAt": row["updated_at"]}
+            "createdAt": row["created_at"], "updatedAt": row["updated_at"], "luckUsed": bool(row["luck_used"]),
+            "doubled": bool(row["doubled"])}
 
 
 def load_round(user_id): return parse_round(get_db().execute("SELECT * FROM active_rounds WHERE user_id=?", (user_id,)).fetchone())
@@ -349,8 +376,9 @@ def load_round(user_id): return parse_round(get_db().execute("SELECT * FROM acti
 
 def save_round(round_):
     now = utc_now()
-    get_db().execute("""UPDATE active_rounds SET bet=?,deck_json=?,player_cards_json=?,dealer_cards_json=?,updated_at=? WHERE id=? AND user_id=?""",
-                     (round_["bet"], json.dumps(round_["deck"]), json.dumps(round_["playerCards"]), json.dumps(round_["dealerCards"]), now, round_["id"], round_["userId"]))
+    get_db().execute("""UPDATE active_rounds SET bet=?,deck_json=?,player_cards_json=?,dealer_cards_json=?,updated_at=?,luck_used=?,doubled=? WHERE id=? AND user_id=?""",
+                     (round_["bet"], json.dumps(round_["deck"]), json.dumps(round_["playerCards"]), json.dumps(round_["dealerCards"]), now,
+                      int(round_.get("luckUsed",False)), int(round_.get("doubled",False)), round_["id"], round_["userId"]))
     round_["updatedAt"] = now
 
 
@@ -359,7 +387,50 @@ def public_round(round_, balance, reveal=False, result=None):
     allowed = [] if result else ["hit", "stand"] + (["double"] if len(round_["playerCards"]) == 2 and balance >= round_["bet"] else [])
     return {"id": round_["id"], "bet": round_["bet"], "playerCards": round_["playerCards"], "dealerCards": dealer,
             "playerValue": hand_value(round_["playerCards"]), "dealerValue": hand_value(round_["dealerCards"] if reveal else [round_["dealerCards"][0]]),
-            "dealerRevealed": reveal, "status": "completed" if result else "active", "allowedActions": allowed, "result": result, "startedAt": round_["createdAt"]}
+            "dealerRevealed": reveal, "status": "completed" if result else "active", "allowedActions": allowed, "result": result,
+            "notice": "Glück hat Sie vor dem Überkaufen gerettet!" if round_.get("luckTriggered") else None,
+            "startedAt": round_["createdAt"]}
+
+
+def upgrade_levels(user_id: int) -> dict[str, int]:
+    levels = {key: 0 for key in UPGRADES}
+    rows = get_db().execute("SELECT upgrade_key,level FROM user_upgrades WHERE user_id=?", (user_id,)).fetchall()
+    for row in rows:
+        if row["upgrade_key"] in levels:
+            levels[row["upgrade_key"]] = row["level"]
+    return levels
+
+
+def upgrade_price(key: str, level: int) -> int:
+    return int(UPGRADES[key]["base_cost"] * (2 ** level))
+
+
+def daily_bonus_state(user_id: int, levels: dict[str, int] | None = None) -> dict:
+    levels = levels or upgrade_levels(user_id)
+    level = levels["daily_bonus"]
+    row = get_db().execute("SELECT last_daily_claim_at FROM upgrade_claims WHERE user_id=?", (user_id,)).fetchone()
+    last_claimed = row["last_daily_claim_at"] if row else None
+    next_claim = None
+    available = level > 0
+    if last_claimed:
+        next_dt = datetime.fromisoformat(last_claimed.replace("Z", "+00:00")) + timedelta(hours=24)
+        next_claim = next_dt.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        available = level > 0 and next_dt <= datetime.now(timezone.utc)
+    return {"available": available, "amount": level * 50, "lastClaimedAt": last_claimed, "nextClaimAt": next_claim}
+
+
+def public_upgrades(user_id: int, balance: float) -> dict:
+    levels = upgrade_levels(user_id)
+    round_active = bool(get_db().execute("SELECT 1 FROM active_rounds WHERE user_id=?", (user_id,)).fetchone())
+    entries = []
+    for key, config in UPGRADES.items():
+        level = levels[key]
+        price = upgrade_price(key, level) if level < MAX_UPGRADE_LEVEL else None
+        entries.append({"key": key, "name": config["name"], "effect": config["effect"], "level": level,
+                        "maxLevel": MAX_UPGRADE_LEVEL, "price": price,
+                        "canBuy": not round_active and price is not None and balance >= price})
+    return {"upgrades": entries, "dailyBonus": daily_bonus_state(user_id, levels), "balance": balance,
+            "roundActive": round_active}
 
 
 def register_action(user_id, action_id, action_type):
@@ -371,20 +442,31 @@ def register_action(user_id, action_id, action_type):
         raise ApiError(409, "Diese Aktion wurde bereits verarbeitet.")
 
 
-def settle(round_, result):
+def settle(round_, result, levels=None):
     db = get_db()
     balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (round_["userId"],)).fetchone()
     if not balance: raise ApiError(404, "Spielerkonto nicht gefunden.")
+    levels = levels or upgrade_levels(round_["userId"])
     multiplier = {"blackjack": 2.5, "win": 2, "push": 1, "loss": 0}[result]
     payout = round_["bet"] * multiplier
+    if result == "blackjack":
+        payout += round_["bet"] * 0.05 * levels["blackjack_bonus"]
+    if result == "loss":
+        payout += round_["bet"] * 0.02 * levels["loss_protection"]
+    stats = db.execute("SELECT * FROM player_stats WHERE user_id=?", (round_["userId"],)).fetchone()
+    if result in {"win", "blackjack"} and stats["current_streak"] >= 2:
+        payout += round_["bet"] * 0.03 * levels["streak_bonus"]
+    if result in {"win", "blackjack"} and round_.get("doubled"):
+        payout += round_["bet"] * 0.05 * levels["double_bonus"]
     before = balance["amount"] + round_["bet"]
     raw_after = balance["amount"] + payout
-    after, refilled = (1000, True) if raw_after <= 0 else (raw_after, False)
+    refill_amount = 1000 + 250 * levels["starting_capital"]
+    after, refilled = (refill_amount, True) if balance["amount"] <= 0 and result == "loss" else (raw_after, False)
+    after = round(after * 2) / 2
     completed = utc_now()
     duration = max(0, min(86400, int((datetime.fromisoformat(completed.replace("Z","+00:00")) - datetime.fromisoformat(round_["createdAt"].replace("Z","+00:00"))).total_seconds())))
     net = after - before
     db.execute("UPDATE balances SET amount=?,updated_at=? WHERE user_id=?", (after, completed, round_["userId"]))
-    stats = db.execute("SELECT * FROM player_stats WHERE user_id=?", (round_["userId"],)).fetchone()
     streak = stats["current_streak"]
     if result in {"win","blackjack"}: streak = streak + 1 if streak > 0 else 1
     elif result == "loss": streak = streak - 1 if streak < 0 else -1
@@ -396,7 +478,10 @@ def settle(round_, result):
     db.execute("""INSERT INTO completed_rounds (id,user_id,bet,outcome,player_cards_json,dealer_cards_json,balance_before,balance_after,net_result,started_at,completed_at,duration_seconds)
                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""", (round_["id"],round_["userId"],round_["bet"],result,json.dumps(round_["playerCards"]),json.dumps(round_["dealerCards"]),before,after,net,round_["createdAt"],completed,duration))
     db.execute("DELETE FROM active_rounds WHERE id=? AND user_id=?", (round_["id"],round_["userId"]))
-    message = outcome_message(result,round_["playerCards"],round_["dealerCards"]) + (" Kontostand automatisch auf 1.000 Chips erneuert." if refilled else "")
+    refill_text = f"{refill_amount:,.0f}".replace(",", ".")
+    refill_message = f" Kontostand automatisch auf {refill_text} Chips erneuert." if refilled else ""
+    luck_message = " Glück hat Sie zuvor vor dem Überkaufen gerettet." if round_.get("luckTriggered") else ""
+    message = outcome_message(result,round_["playerCards"],round_["dealerCards"]) + luck_message + refill_message
     return {"round": public_round(round_,after,True,{"outcome":result,"payout":payout,"netResult":net,"message":message}),"balance":after}
 
 
@@ -573,9 +658,13 @@ def make_app():
             balance=db.execute("SELECT amount FROM balances WHERE user_id=?",(g.auth["user_id"],)).fetchone()
             if not balance or bet>balance["amount"]: raise ApiError(400,"Für diesen Einsatz reichen die Chips nicht aus.")
             now=utc_now(); deck=create_shoe(); player=[draw(deck),draw(deck)]; dealer=[draw(deck),draw(deck)]
-            round_={"id":str(uuid.uuid4()),"userId":g.auth["user_id"],"bet":bet,"deck":deck,"playerCards":player,"dealerCards":dealer,"createdAt":now,"updatedAt":now}
+            round_={"id":str(uuid.uuid4()),"userId":g.auth["user_id"],"bet":bet,"deck":deck,"playerCards":player,"dealerCards":dealer,
+                    "createdAt":now,"updatedAt":now,"luckUsed":False,"doubled":False}
             db.execute("UPDATE balances SET amount=amount-?,updated_at=? WHERE user_id=?",(bet,now,g.auth["user_id"]))
-            db.execute("INSERT INTO active_rounds VALUES (?,?,?,?,?,?,?,?)",(round_["id"],round_["userId"],bet,json.dumps(deck),json.dumps(player),json.dumps(dealer),now,now))
+            db.execute("""INSERT INTO active_rounds
+                        (id,user_id,bet,deck_json,player_cards_json,dealer_cards_json,created_at,updated_at,luck_used,doubled)
+                        VALUES (?,?,?,?,?,?,?,?,0,0)""",
+                       (round_["id"],round_["userId"],bet,json.dumps(deck),json.dumps(player),json.dumps(dealer),now,now))
             data=settle(round_,outcome(player,dealer)) if blackjack(player) or blackjack(dealer) else {"round":public_round(round_,balance["amount"]-bet),"balance":balance["amount"]-bet}
         return ok(data,data["round"]["result"]["message"] if data["round"]["status"]=="completed" else "Runde gestartet.",201)
 
@@ -585,18 +674,32 @@ def make_app():
             register_action(g.auth["user_id"],payload.get("actionId"),kind)
             round_=load_round(g.auth["user_id"])
             if not round_: raise ApiError(409,"Es läuft keine Runde.")
+            round_["luckTriggered"] = False
+            levels = upgrade_levels(g.auth["user_id"])
+            luck_level = levels["luck"]
+
+            def apply_luck_if_available():
+                if hand_value(round_["playerCards"]) <= 21 or round_["luckUsed"] or luck_level <= 0:
+                    return
+                if secrets.randbelow(10_000) < luck_level * 200:
+                    round_["playerCards"].pop()
+                    round_["playerCards"].append(draw(round_["deck"]))
+                    round_["luckUsed"] = True
+                    round_["luckTriggered"] = True
+
             if kind=="hit":
                 round_["playerCards"].append(draw(round_["deck"]))
-                if hand_value(round_["playerCards"])>21: save_round(round_); return settle(round_,"loss")
-                if hand_value(round_["playerCards"])==21: dealer_play(round_["deck"],round_["dealerCards"]); save_round(round_); return settle(round_,outcome(round_["playerCards"],round_["dealerCards"]))
+                apply_luck_if_available()
+                if hand_value(round_["playerCards"])>21: save_round(round_); return settle(round_,"loss",levels)
+                if hand_value(round_["playerCards"])==21: dealer_play(round_["deck"],round_["dealerCards"]); save_round(round_); return settle(round_,outcome(round_["playerCards"],round_["dealerCards"]),levels)
                 save_round(round_); balance=get_db().execute("SELECT amount FROM balances WHERE user_id=?",(g.auth["user_id"],)).fetchone()["amount"]; return {"round":public_round(round_,balance),"balance":balance}
             if kind=="double":
                 if len(round_["playerCards"])!=2: raise ApiError(409,"Verdoppeln ist nur mit zwei Karten möglich.")
                 balance=get_db().execute("SELECT amount FROM balances WHERE user_id=?",(g.auth["user_id"],)).fetchone()["amount"]
                 if balance<round_["bet"]: raise ApiError(400,"Für das Verdoppeln reichen die Chips nicht aus.")
-                get_db().execute("UPDATE balances SET amount=amount-?,updated_at=? WHERE user_id=?",(round_["bet"],utc_now(),g.auth["user_id"])); round_["bet"]*=2; round_["playerCards"].append(draw(round_["deck"])); save_round(round_)
-                if hand_value(round_["playerCards"])>21: return settle(round_,"loss")
-            dealer_play(round_["deck"],round_["dealerCards"]); save_round(round_); return settle(round_,outcome(round_["playerCards"],round_["dealerCards"]))
+                get_db().execute("UPDATE balances SET amount=amount-?,updated_at=? WHERE user_id=?",(round_["bet"],utc_now(),g.auth["user_id"])); round_["bet"]*=2; round_["doubled"]=True; round_["playerCards"].append(draw(round_["deck"])); apply_luck_if_available(); save_round(round_)
+                if hand_value(round_["playerCards"])>21: return settle(round_,"loss",levels)
+            dealer_play(round_["deck"],round_["dealerCards"]); save_round(round_); return settle(round_,outcome(round_["playerCards"],round_["dealerCards"]),levels)
 
     @app.post("/api/game/hit")
     @auth_required
@@ -612,6 +715,62 @@ def make_app():
     def current():
         round_=load_round(g.auth["user_id"]); balance=get_db().execute("SELECT amount FROM balances WHERE user_id=?",(g.auth["user_id"],)).fetchone()["amount"]
         return ok({"round":public_round(round_,balance) if round_ else None,"balance":balance})
+
+    @app.get("/api/upgrades")
+    @auth_required
+    def upgrades():
+        balance = get_db().execute("SELECT amount FROM balances WHERE user_id=?", (g.auth["user_id"],)).fetchone()["amount"]
+        return ok(public_upgrades(g.auth["user_id"], balance))
+
+    @app.post("/api/upgrades/<upgrade_key>/buy")
+    @auth_required
+    def buy_upgrade(upgrade_key):
+        if upgrade_key not in UPGRADES:
+            raise ApiError(404, "Upgrade nicht gefunden.")
+        payload = body()
+        with transaction() as db:
+            register_action(g.auth["user_id"], payload.get("actionId"), f"upgrade-{upgrade_key}")
+            if load_round(g.auth["user_id"]):
+                raise ApiError(409, "Während einer laufenden Runde können keine Upgrades gekauft werden.")
+            row = db.execute("SELECT level FROM user_upgrades WHERE user_id=? AND upgrade_key=?",
+                             (g.auth["user_id"], upgrade_key)).fetchone()
+            level = row["level"] if row else 0
+            if level >= MAX_UPGRADE_LEVEL:
+                raise ApiError(409, "Dieses Upgrade hat bereits das Maximallevel erreicht.")
+            price = upgrade_price(upgrade_key, level)
+            balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (g.auth["user_id"],)).fetchone()["amount"]
+            if balance < price:
+                raise ApiError(400, "Für dieses Upgrade reichen die Chips nicht aus.")
+            now = utc_now()
+            db.execute("UPDATE balances SET amount=amount-?,updated_at=? WHERE user_id=?", (price, now, g.auth["user_id"]))
+            db.execute("""INSERT INTO user_upgrades (user_id,upgrade_key,level,updated_at) VALUES (?,?,1,?)
+                          ON CONFLICT(user_id,upgrade_key) DO UPDATE SET level=level+1,updated_at=excluded.updated_at""",
+                       (g.auth["user_id"], upgrade_key, now))
+            new_balance = balance - price
+        return ok(public_upgrades(g.auth["user_id"], new_balance), f"{UPGRADES[upgrade_key]['name']} verbessert.")
+
+    @app.post("/api/upgrades/daily-bonus/claim")
+    @auth_required
+    def claim_daily_bonus():
+        payload = body()
+        with transaction() as db:
+            register_action(g.auth["user_id"], payload.get("actionId"), "daily-bonus")
+            if load_round(g.auth["user_id"]):
+                raise ApiError(409, "Der Tagesbonus kann erst nach der laufenden Runde abgeholt werden.")
+            levels = upgrade_levels(g.auth["user_id"])
+            daily = daily_bonus_state(g.auth["user_id"], levels)
+            if levels["daily_bonus"] <= 0:
+                raise ApiError(409, "Kaufe zuerst das Tagesbonus-Upgrade.")
+            if not daily["available"]:
+                raise ApiError(409, "Der Tagesbonus ist noch nicht wieder verfügbar.")
+            now = utc_now()
+            db.execute("UPDATE balances SET amount=amount+?,updated_at=? WHERE user_id=?",
+                       (daily["amount"], now, g.auth["user_id"]))
+            db.execute("""INSERT INTO upgrade_claims (user_id,last_daily_claim_at) VALUES (?,?)
+                          ON CONFLICT(user_id) DO UPDATE SET last_daily_claim_at=excluded.last_daily_claim_at""",
+                       (g.auth["user_id"], now))
+            balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (g.auth["user_id"],)).fetchone()["amount"]
+        return ok(public_upgrades(g.auth["user_id"], balance), f"{daily['amount']} Chips Tagesbonus erhalten.")
 
     @app.get("/api/leaderboard")
     @auth_required
