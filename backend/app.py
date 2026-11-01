@@ -147,6 +147,9 @@ CREATE TABLE IF NOT EXISTS active_chicken_rounds (
  id TEXT PRIMARY KEY, user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
  bet REAL NOT NULL CHECK (bet >= 5), steps INTEGER NOT NULL DEFAULT 0 CHECK (steps BETWEEN 0 AND 10),
  created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS big_wins (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ game TEXT NOT NULL, amount REAL NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS completed_rounds (
  id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, bet REAL NOT NULL,
  outcome TEXT NOT NULL CHECK (outcome IN ('win','loss','push','blackjack')), player_cards_json TEXT NOT NULL,
@@ -473,6 +476,12 @@ def register_action(user_id, action_id, action_type):
         raise ApiError(409, "Diese Aktion wurde bereits verarbeitet.")
 
 
+def record_big_win(db, user_id, game, amount):
+    if amount >= 1000:
+        db.execute("INSERT INTO big_wins (user_id,game,amount,created_at) VALUES (?,?,?,?)", (user_id, game, amount, utc_now()))
+        db.execute("DELETE FROM big_wins WHERE id < (SELECT MAX(id) - 1000 FROM big_wins)")
+
+
 def settle(round_, result, levels=None):
     db = get_db()
     balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (round_["userId"],)).fetchone()
@@ -497,6 +506,8 @@ def settle(round_, result, levels=None):
     completed = utc_now()
     duration = max(0, min(86400, int((datetime.fromisoformat(completed.replace("Z","+00:00")) - datetime.fromisoformat(round_["createdAt"].replace("Z","+00:00"))).total_seconds())))
     net = after - before
+    if result in {"win", "blackjack"}:
+        record_big_win(db, round_["userId"], "Blackjack", round(payout * 2) / 2 - round_["bet"])
     db.execute("UPDATE balances SET amount=?,updated_at=? WHERE user_id=?", (after, completed, round_["userId"]))
     streak = stats["current_streak"]
     if result in {"win","blackjack"}: streak = streak + 1 if streak > 0 else 1
@@ -763,6 +774,7 @@ def make_app():
         if refilled:
             after = 1000 + 250 * upgrade_levels(user_id)["starting_capital"]
         net = payout - bet
+        record_big_win(db, user_id, "Chicken", net)
         db.execute("UPDATE balances SET amount=?,updated_at=? WHERE user_id=?", (after, utc_now(), user_id))
         db.execute("DELETE FROM active_chicken_rounds WHERE user_id=?", (user_id,))
         stats = db.execute("SELECT current_streak,best_win_streak FROM player_stats WHERE user_id=?", (user_id,)).fetchone()
@@ -773,6 +785,21 @@ def make_app():
                       best_win_streak=MAX(best_win_streak,?) WHERE user_id=?""",
                    (int(won), int(not won), after, max(0, net), max(0, net), max(0, -net), streak, max(0, streak), user_id))
         return chicken_data(None, after, {"won": won, "steps": row["steps"], "payout": payout, "netResult": net, "refilled": refilled})
+
+    @app.get("/api/big-wins")
+    def big_wins():
+        db = get_db()
+        latest = db.execute("SELECT COALESCE(MAX(id),0) FROM big_wins").fetchone()[0]
+        raw = request.args.get("after")
+        if raw is None:
+            return ok({"wins": [], "cursor": latest})
+        if not raw.isdigit() or len(raw) > 18:
+            raise ApiError(400, "Ungültiger Cursor.")
+        cutoff = (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        rows = db.execute("""SELECT w.id,u.username,w.game,w.amount FROM big_wins w
+                             JOIN users u ON u.id=w.user_id WHERE w.id>? AND w.created_at>=?
+                             ORDER BY w.id DESC LIMIT 3""", (int(raw), cutoff)).fetchall()
+        return ok({"wins": [dict(row) for row in reversed(rows)], "cursor": latest})
 
     @app.get("/api/chicken/current")
     @auth_required
