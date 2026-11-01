@@ -802,6 +802,36 @@ def make_app():
                              ORDER BY w.id DESC LIMIT 3""", (int(raw), cutoff)).fetchall()
         return ok({"wins": [dict(row) for row in reversed(rows)], "cursor": latest})
 
+    @app.post("/api/pinball/play")
+    @auth_required
+    def pinball_play():
+        payload = body()
+        try: bet = float(payload.get("bet"))
+        except (TypeError, ValueError): bet = 0
+        if not math.isfinite(bet) or bet < 5 or bet * 2 != round(bet * 2):
+            raise ApiError(400, "Mindestens 5 Chips in 0,5er-Schritten einsetzen.")
+        multipliers = (74, 12, 3.6, 1.5, 0.8, 0.6, 0.5, 0.6, 0.8, 1.5, 3.6, 12, 74)
+        with transaction() as db:
+            user_id = g.auth["user_id"]
+            register_action(user_id, payload.get("actionId"), "pinball-play")
+            if load_round(user_id) or db.execute("SELECT 1 FROM active_chicken_rounds WHERE user_id=?", (user_id,)).fetchone():
+                raise ApiError(409, "Beende zuerst die laufende Runde.")
+            balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
+            if bet > balance: raise ApiError(400, "Nicht genügend Chips.")
+            path = [secrets.randbelow(2) for _ in range(12)]
+            slot = sum(path)
+            payout = round(bet * multipliers[slot] * 2) / 2
+            net = payout - bet
+            after = balance + net
+            if after == 0: after = 1000 + 250 * upgrade_levels(user_id)["starting_capital"]
+            db.execute("UPDATE balances SET amount=?,updated_at=? WHERE user_id=?", (after, utc_now(), user_id))
+            db.execute("""UPDATE player_stats SET rounds_played=rounds_played+1,wins=wins+?,losses=losses+?,
+                          highest_balance=MAX(highest_balance,?),biggest_win=MAX(biggest_win,?),
+                          total_won=total_won+?,total_lost=total_lost+? WHERE user_id=?""",
+                       (int(net>0), int(net<0), after, max(0,net), max(0,net), max(0,-net), user_id))
+            record_big_win(db, user_id, "Pinball", net, bet)
+        return ok({"path": path, "slot": slot, "multiplier": multipliers[slot], "payout": payout, "netResult": net, "balance": after})
+
     @app.get("/api/chicken/current")
     @auth_required
     def chicken_current():
