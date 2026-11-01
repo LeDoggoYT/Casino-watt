@@ -639,6 +639,8 @@ function setView(view) {
   if (view === "chicken") loadChicken();
   if (view === "pinball") updatePinballControls();
   if (view === "crash") startCrash();
+  if (view === "loot") loadLoot();
+  if (view === "market") loadMarket();
 }
 
 function positionChicken(step) {

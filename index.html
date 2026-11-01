@@ -6,7 +6,7 @@
   <meta name="description" content="Watt Casino – kostenloses Blackjack mit virtuellem Spielgeld.">
   <title>Wigipeadia</title>
   <link rel="icon" href="https://www.wikipedia.org/static/favicon/wikipedia.ico" sizes="any">
-  <link rel="stylesheet" href="style.css?v=crash-1">
+  <link rel="stylesheet" href="style.css?v=market-1">
 </head>
 <body>
   <aside id="win-notifications" class="win-notifications" aria-label="Große Gewinne" aria-live="polite" aria-relevant="additions"></aside>
@@ -91,6 +91,7 @@
         <button class="nav-link is-active" type="button" data-view="home">Startseite</button>
         <button class="nav-link" type="button" data-view="game">Blackjack</button>
         <button class="nav-link" type="button" data-view="chicken">Chicken</button>
+        <button class="nav-link" type="button" data-view="market">Handelsplatz</button>
         <button class="nav-link" type="button" data-view="leaderboard">Leaderboard</button>
         <button class="nav-link" type="button" data-view="upgrades">Upgrades</button>
       </nav>
@@ -115,7 +116,7 @@
         <span class="home-hero-mark" aria-hidden="true">W</span>
       </section>
       <section class="games-section" aria-labelledby="games-title">
-        <div class="games-heading"><div><span class="section-kicker">Spielübersicht</span><h2 id="games-title">Unsere Spiele</h2></div><span>4 von 9 verfügbar</span></div>
+        <div class="games-heading"><div><span class="section-kicker">Spielübersicht</span><h2 id="games-title">Unsere Spiele</h2></div><span>5 von 9 verfügbar</span></div>
         <div class="game-grid">
           <article class="game-tile game-tile--available">
             <div class="game-tile-art game-tile-art--blackjack" aria-hidden="true"><span>♠</span><span>21</span></div>
@@ -127,12 +128,31 @@
           <article class="game-tile"><div class="game-tile-art game-tile-art--hilo" aria-hidden="true">↑↓</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Hi-Lo</h3><p>Ist die nächste Karte höher oder tiefer?</p></div></article>
           <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--chicken" aria-hidden="true">🐔</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Chicken</h3><p>Gehe weiter oder sichere deinen Gewinn.</p><button class="game-tile-button" type="button" data-open-view="chicken">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
           <article class="game-tile"><div class="game-tile-art game-tile-art--slots" aria-hidden="true">✦</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Slots</h3><p>Dreh die Walzen und entdecke Neues.</p></div></article>
-          <article class="game-tile"><div class="game-tile-art game-tile-art--loot" aria-hidden="true">◇</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Loot Boxen</h3><p>Öffne eine Box und entdecke den Inhalt.</p></div></article>
+          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--loot" aria-hidden="true">◇</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Loot Boxen</h3><p>Wähle eine Kiste und entdecke deinen Gewinn.</p><button class="game-tile-button" type="button" data-open-view="loot">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
           <article class="game-tile"><div class="game-tile-art game-tile-art--mines" aria-hidden="true">✣</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Mines</h3><p>Decke Felder auf und meide die Minen.</p></div></article>
         </div>
       </section>
     </main>
 
+    <main id="market-view" class="app-view loot-view" hidden>
+      <header class="loot-header"><div><span class="section-kicker">Watt Casino · Spielerhandel</span><h1>Handelsplatz</h1><p>Gegenstände anbieten, von Spielern kaufen oder sofort verkaufen.</p></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="market-balance">–</span> <small>Chips</small></strong></div></header>
+      <div class="market-summary"><p>Mehr Gegenstände im Umlauf → Preis sinkt. Weniger → Preis steigt. Gleiche Menge → gleicher Preis. Alle 10 Minuten, höchstens ±10 %; zwischen 25 % und 200 % des Startwerts. Spielerangebote behalten ihren Preis.</p><strong id="market-clock">Preise laden …</strong></div>
+      <p id="market-message" role="status" aria-live="polite"></p>
+      <section class="loot-history-panel"><h2>Deine Gegenstände</h2><p class="loot-hint">Ein Verkauf handelt jeweils einen Gegenstand. Eingestellte Gegenstände bleiben bis zum Kauf reserviert. Schnellverkäufe entfernen den Gegenstand aus dem Umlauf.</p><div id="market-inventory" class="market-grid"></div></section>
+      <section class="loot-history-panel"><h2>Angebote der Spieler</h2><div id="market-listings" class="market-grid"></div></section>
+      <section class="loot-history-panel"><h2>Aktuelle Schnellverkaufspreise</h2><div id="market-prices" class="market-grid"></div></section>
+    </main>
+    <main id="loot-view" class="app-view loot-view" hidden>
+      <header class="loot-header"><div><span class="section-kicker">Watt Casino · Schatzkammer</span><h1>Loot Boxen</h1><p>Audio, Gaming, Technik und Autos sammeln. Alle Gegenstände sind virtuell.</p></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="loot-balance">–</span> <small>Chips</small></strong></div></header>
+      <div id="loot-boxes" class="loot-boxes" role="group" aria-label="Box auswählen"></div>
+      <div class="loot-layout">
+        <section class="loot-stage" aria-label="Box öffnen"><span id="loot-stage-name" class="section-kicker">Wähle deine Box</span><div id="loot-reel" class="loot-reel" aria-hidden="true"><div id="loot-track" class="loot-track"></div><div class="loot-reel-marker"></div></div><div id="loot-result" class="loot-result" role="status" aria-live="polite">Deine nächste Überraschung wartet.</div><button id="loot-open" class="crash-primary" type="button" disabled>Boxen laden …</button><p id="loot-message" class="loot-hint" role="status">Dein Gegenstand wird in deinem virtuellen Inventar gespeichert.</p></section>
+        <section class="loot-rewards-panel"><span class="section-kicker">In dieser Box</span><h2>Mögliche Belohnungen</h2><p id="loot-reward-hint" class="loot-hint">Gewinne und Chancen werden geladen.</p><div id="loot-rewards" class="loot-rewards"></div><p id="loot-pricing" class="loot-hint"></p><p class="loot-hint">Für die Pack-Berechnung entspricht 1 CHF Referenzwert einem Spielchip. Kein Echtgeld- oder Auszahlungswert.</p></section>
+      </div>
+      <section class="loot-history-panel"><h2>Dein Inventar</h2><button class="game-tile-button" type="button" data-open-view="market">Zum Handelsplatz →</button><p class="loot-hint">Deine virtuellen Sammelgegenstände · kein Versand und kein Echtgeldwert.</p><div id="loot-inventory" class="loot-inventory"></div></section>
+      <section class="loot-history-panel"><h2>Deine letzten Öffnungen</h2><div id="loot-history" class="loot-history"></div></section>
+      <p class="loot-photo-credit">Produktbilder: <a href="https://www.apple.com/newsroom/2024/09/get-ready-to-upgrade-to-the-new-iphone-16-apple-watch-and-airpods-lineups/" target="_blank" rel="noopener noreferrer">Apple Newsroom</a>, Hersteller und Händler. Golf: <a href="https://commons.wikimedia.org/wiki/File:2020_Volkswagen_Golf_Style_1.5_Front.jpg" target="_blank" rel="noopener noreferrer">Vauxford</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a> (freigestellt). Porsche: <a href="https://commons.wikimedia.org/wiki/File:Porsche_911_Carrera_S_(992)_-_2025-11-21.jpg" target="_blank" rel="noopener noreferrer">Bretwa, CC0</a> (freigestellt).</p>
+    </main>
     <main id="crash-view" class="app-view crash-view" hidden>
       <header class="crash-header"><div><span class="section-kicker">Gemeinsame Server-Runde</span><h1>Crash</h1></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="crash-balance">–</span> <small>Chips</small></strong></div></header>
       <section class="crash-history-panel" aria-label="Vergangene Runden"><span>Letzte Runden</span><div id="crash-history" class="crash-history"></div></section>
@@ -390,8 +410,10 @@
     </form>
   </dialog>
 
-  <script src="script.js?v=crash-1" defer></script>
+  <script src="script.js?v=market-1" defer></script>
   <script src="pinball.js?v=pinball-alignment-3" defer></script>
   <script src="crash.js?v=1" defer></script>
+  <script src="loot.js?v=4" defer></script>
+  <script src="market.js?v=1" defer></script>
 </body>
 </html>
