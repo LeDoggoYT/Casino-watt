@@ -74,6 +74,19 @@ class WattCasinoApiTests(unittest.TestCase):
             lost = self.request("POST", "/api/chicken/step", {"actionId": "chicken-step-action-0002"}, token)
         self.assertFalse(lost.get_json()["data"]["result"]["won"])
         self.assertEqual(lost.get_json()["data"]["balance"], 1000)
+        self.request("POST", "/api/chicken/start", {"bet": 5, "actionId": "chicken-ten-start-0001"}, token)
+        with patch("app.secrets.randbelow", return_value=0):
+            for step_number in range(1, 11):
+                response = self.request("POST", "/api/chicken/step", {"actionId": f"chicken-ten-step-{step_number:04d}"}, token)
+                self.assertEqual(response.status_code, 200)
+                data = response.get_json()["data"]
+                if step_number < 10:
+                    self.assertEqual(data["round"]["steps"], step_number)
+                else:
+                    self.assertIsNone(data["round"])
+                    self.assertEqual(data["result"]["steps"], 10)
+                    self.assertEqual(data["result"]["payout"], 47.5)
+                    self.assertEqual(data["balance"], 1042.5)
 
     def test_auth_game_admin_and_suspension(self):
         player = {"username": "PythonPlayer", "password": "SicheresTestpasswort9"}

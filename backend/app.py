@@ -32,7 +32,7 @@ LAST_CLEANUP_AT = 0.0
 AUTH_TOUCH_SECONDS = 5 * 60
 CLEANUP_INTERVAL_SECONDS = 15 * 60
 MAX_UPGRADE_LEVEL = 5
-CHICKEN_MULTIPLIERS = (1.2, 1.5, 1.9, 2.4, 3.0)
+CHICKEN_MULTIPLIERS = (1.2, 1.5, 1.9, 2.4, 3.0, 3.8, 4.8, 6.0, 7.5, 9.5)
 UPGRADES = {
     "starting_capital": {"name": "Startkapital", "base_cost": 750, "effect": "+250 Chips Neustartkapital je Level"},
     "luck": {"name": "Glück", "base_cost": 1500, "effect": "+2 % Rettungschance je Level"},
@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS active_rounds (
  luck_used INTEGER NOT NULL DEFAULT 0 CHECK (luck_used IN (0,1)), doubled INTEGER NOT NULL DEFAULT 0 CHECK (doubled IN (0,1)));
 CREATE TABLE IF NOT EXISTS active_chicken_rounds (
  id TEXT PRIMARY KEY, user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
- bet REAL NOT NULL CHECK (bet >= 5), steps INTEGER NOT NULL DEFAULT 0 CHECK (steps BETWEEN 0 AND 5),
+ bet REAL NOT NULL CHECK (bet >= 5), steps INTEGER NOT NULL DEFAULT 0 CHECK (steps BETWEEN 0 AND 10),
  created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS completed_rounds (
  id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, bet REAL NOT NULL,
@@ -185,6 +185,17 @@ def initialise_database(app: Flask) -> None:
     with app.app_context():
         db = get_db()
         db.executescript(SCHEMA)
+        # Bestehende Fünf-Spuren-Runden inklusive Einsatz unverändert übernehmen.
+        with transaction():
+            chicken_schema = db.execute("SELECT sql FROM sqlite_master WHERE name='active_chicken_rounds'").fetchone()["sql"]
+            if "BETWEEN 0 AND 5" in chicken_schema:
+                db.execute("""CREATE TABLE chicken_rounds_expanded (
+                    id TEXT PRIMARY KEY, user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                    bet REAL NOT NULL CHECK (bet >= 5), steps INTEGER NOT NULL DEFAULT 0 CHECK (steps BETWEEN 0 AND 10),
+                    created_at TEXT NOT NULL)""")
+                db.execute("INSERT INTO chicken_rounds_expanded SELECT id,user_id,bet,steps,created_at FROM active_chicken_rounds")
+                db.execute("DROP TABLE active_chicken_rounds")
+                db.execute("ALTER TABLE chicken_rounds_expanded RENAME TO active_chicken_rounds")
         for name, definition in [
             ("is_suspended", "INTEGER NOT NULL DEFAULT 0 CHECK (is_suspended IN (0,1))"),
             ("suspension_reason", "TEXT"),
