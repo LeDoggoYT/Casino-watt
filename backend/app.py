@@ -36,6 +36,15 @@ CHICKEN_MULTIPLIERS = (0.8, 1.0, 2.4, 3.0, 3.8, 4.8, 6.0, 7.5, 9.5)
 CHICKEN_SUCCESS_CHANCES = (90, 85, 80, 75, 70, 65, 60, 55, 50)
 LOOT_BOXES = {"bronze": {"name": "Bronze", "price": 50}, "emerald": {"name": "Smaragd", "price": 250}, "royal": {"name": "Royal", "price": 1000}}
 LOOT_REWARDS = (("Klein", 0.25, 40), ("Normal", 0.5, 25), ("Selten", 1, 20), ("Episch", 2, 10), ("Legendär", 5, 4), ("Jackpot", 10, 1))
+LOOT_BOXES["tech"] = {"name": "Technik-Pack", "price": 250, "kind": "items"}
+LOOT_ITEMS = [
+    {"key": "airpods-4", "name": "AirPods 4", "chance": 40, "image": "assets/loot/airpods-4.jpg"},
+    {"key": "airpods-max", "name": "AirPods Max", "chance": 25, "image": "assets/loot/airpods-max.jpg"},
+    {"key": "watch-10", "name": "Apple Watch Series 10", "chance": 20, "image": "assets/loot/watch-10.jpg"},
+    {"key": "iphone-16", "name": "iPhone 16", "chance": 10, "image": "assets/loot/iphone-16.jpg"},
+    {"key": "watch-ultra", "name": "Apple Watch Ultra 2", "chance": 4, "image": "assets/loot/watch-ultra.jpg"},
+    {"key": "iphone-pro", "name": "iPhone 16 Pro", "chance": 1, "image": "assets/loot/iphone-pro.jpg"},
+]
 UPGRADES = {
     "starting_capital": {"name": "Startkapital", "base_cost": 750, "effect": "+250 Chips Neustartkapital je Level"},
     "luck": {"name": "Glück", "base_cost": 1500, "effect": "+2 % Rettungschance je Level"},
@@ -154,6 +163,10 @@ CREATE TABLE IF NOT EXISTS loot_openings (
  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  box_key TEXT NOT NULL, price REAL NOT NULL, payout REAL NOT NULL, reward_index INTEGER NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS loot_user_history ON loot_openings(user_id,id);
+CREATE TABLE IF NOT EXISTS loot_inventory (
+ opening_id INTEGER PRIMARY KEY REFERENCES loot_openings(id) ON DELETE CASCADE,
+ user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, item_key TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS loot_inventory_user ON loot_inventory(user_id,item_key);
 CREATE TABLE IF NOT EXISTS crash_rounds (
  id INTEGER PRIMARY KEY AUTOINCREMENT, starts_at REAL NOT NULL, ends_at REAL NOT NULL,
  crash_at REAL NOT NULL, settled INTEGER NOT NULL DEFAULT 0);
@@ -920,14 +933,19 @@ def make_app():
         return ok(data)
 
     def loot_history(user_id):
-        return [dict(row) for row in get_db().execute("SELECT id,box_key,price,payout,reward_index,created_at FROM loot_openings WHERE user_id=? ORDER BY id DESC LIMIT 10", (user_id,))]
+        return [dict(row) for row in get_db().execute("""SELECT o.id,o.box_key,o.price,o.payout,o.reward_index,o.created_at,i.item_key
+                   FROM loot_openings o LEFT JOIN loot_inventory i ON i.opening_id=o.id
+                   WHERE o.user_id=? ORDER BY o.id DESC LIMIT 10""", (user_id,))]
+
+    def loot_inventory(user_id):
+        return [dict(row) for row in get_db().execute("SELECT item_key,COUNT(*) AS quantity FROM loot_inventory WHERE user_id=? GROUP BY item_key", (user_id,))]
 
     @app.get("/api/loot/current")
     @auth_required
     def loot_current():
         return ok({"boxes": [{"key": key, **box} for key, box in LOOT_BOXES.items()],
                    "rewards": [{"name": name, "multiplier": multiplier, "chance": chance} for name, multiplier, chance in LOOT_REWARDS],
-                   "history": loot_history(g.auth["user_id"]),
+                   "history": loot_history(g.auth["user_id"]), "items": LOOT_ITEMS, "inventory": loot_inventory(g.auth["user_id"]),
                    "balance": get_db().execute("SELECT amount FROM balances WHERE user_id=?", (g.auth["user_id"],)).fetchone()["amount"]})
 
     @app.post("/api/loot/open")
@@ -944,6 +962,17 @@ def make_app():
             price = LOOT_BOXES[key]["price"]
             balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
             if balance < price: raise ApiError(400, "Nicht genügend Chips für diese Box.")
+            if key == "tech":
+                roll = secrets.randbelow(100)
+                for index, item in enumerate(LOOT_ITEMS):
+                    if roll < item["chance"]: break
+                    roll -= item["chance"]
+                db.execute("UPDATE balances SET amount=amount-?,updated_at=? WHERE user_id=?", (price, utc_now(), user_id))
+                opening = db.execute("INSERT INTO loot_openings(user_id,box_key,price,payout,reward_index,created_at) VALUES (?,?,?,0,?,?)", (user_id,key,price,index,utc_now()))
+                db.execute("INSERT INTO loot_inventory(opening_id,user_id,item_key) VALUES (?,?,?)", (opening.lastrowid,user_id,item["key"]))
+                after = restore_empty_balance(user_id)
+                return ok({"balance": after, "item": item, "rewardIndex": index,
+                           "history": loot_history(user_id), "inventory": loot_inventory(user_id)})
             roll = secrets.randbelow(100)
             for index, (_, multiplier, chance) in enumerate(LOOT_REWARDS):
                 if roll < chance: break

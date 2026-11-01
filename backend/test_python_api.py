@@ -20,7 +20,7 @@ class WattCasinoApiTests(unittest.TestCase):
         token = self.request("POST", "/api/auth/register", {"username": "LootPlayer", "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
         catalog = self.request("GET", "/api/loot/current", token=token).get_json()["data"]
         self.assertEqual(sum(reward["chance"] for reward in catalog["rewards"]), 100)
-        self.assertEqual([box["price"] for box in catalog["boxes"]], [50, 250, 1000])
+        self.assertEqual([box["price"] for box in catalog["boxes"] if box.get("kind") != "items"], [50, 250, 1000])
         balance = 1000
         for index, (roll, payout) in enumerate(((39, 12.5), (40, 25), (65, 50), (85, 100), (95, 250), (99, 500))):
             payload = {"box": "bronze", "price": 0, "payout": 999999, "actionId": f"loot-open-test-{index:04d}"}
@@ -44,6 +44,25 @@ class WattCasinoApiTests(unittest.TestCase):
         poor = self.request("POST", "/api/loot/open", {"box": "royal", "actionId": "loot-poor-player-0001"}, token)
         self.assertEqual(poor.status_code, 400)
         self.assertEqual(self.request("GET", "/api/loot/current", token=token).get_json()["data"]["balance"], 10)
+
+    def test_tech_pack_inventory_is_persistent_and_duplicate_safe(self):
+        token = self.request("POST", "/api/auth/register", {"username": "TechCollector", "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
+        catalog = self.request("GET", "/api/loot/current", token=token).get_json()["data"]
+        self.assertEqual(sum(item["chance"] for item in catalog["items"]), 100)
+        for index, roll in enumerate((39, 40, 65, 85, 95, 99)):
+            payload = {"box": "tech", "item": "iphone-pro", "price": 0, "actionId": f"tech-pack-open-{index:04d}"}
+            with patch("app.secrets.randbelow", return_value=roll):
+                response = self.request("POST", "/api/loot/open", payload, token)
+            self.assertEqual(response.status_code, 200)
+            data = response.get_json()["data"]
+            self.assertEqual(data["item"]["key"], catalog["items"][index]["key"])
+            self.assertEqual(sum(entry["quantity"] for entry in data["inventory"]), index+1)
+            self.assertNotIn("payout", data)
+            self.assertEqual(self.request("POST", "/api/loot/open", payload, token).status_code, 409)
+        resumed = self.request("GET", "/api/loot/current", token=token).get_json()["data"]
+        self.assertEqual(len(resumed["inventory"]), 6)
+        self.assertEqual(resumed["history"][0]["item_key"], "iphone-pro")
+        self.assertEqual(resumed["balance"], 500)
 
     def test_shared_crash_round_cashout_loss_and_reload(self):
         tokens = [self.request("POST", "/api/auth/register", {"username": name, "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
