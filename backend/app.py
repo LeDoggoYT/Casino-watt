@@ -810,7 +810,7 @@ def make_app():
         except (TypeError, ValueError): bet = 0
         if not math.isfinite(bet) or bet < 5 or bet * 2 != round(bet * 2):
             raise ApiError(400, "Mindestens 5 Chips in 0,5er-Schritten einsetzen.")
-        multipliers = (74, 12, 3.6, 1.5, 0.8, 0.6, 0.5, 0.6, 0.8, 1.5, 3.6, 12, 74)
+        multipliers = (200, 74, 12, 3.6, 1.5, 0.8, 0.6, 0.8, 1.5, 3.6, 12, 74, 200)
         with transaction() as db:
             user_id = g.auth["user_id"]
             register_action(user_id, payload.get("actionId"), "pinball-play")
@@ -818,7 +818,11 @@ def make_app():
                 raise ApiError(409, "Beende zuerst die laufende Runde.")
             balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
             if bet > balance: raise ApiError(400, "Nicht genügend Chips.")
-            path = [secrets.randbelow(2) for _ in range(12)]
+            # Pick either side equally, then favour it slightly on each bounce.
+            # This increases winning outer landings without changing payouts.
+            preferred_side = secrets.randbelow(2)
+            path = [preferred_side if secrets.randbelow(100) < 60 else 1 - preferred_side
+                    for _ in range(len(multipliers) - 1)]
             slot = sum(path)
             payout = round(bet * multipliers[slot] * 2) / 2
             net = payout - bet
@@ -830,7 +834,7 @@ def make_app():
                           total_won=total_won+?,total_lost=total_lost+? WHERE user_id=?""",
                        (int(net>0), int(net<0), after, max(0,net), max(0,net), max(0,-net), user_id))
             record_big_win(db, user_id, "Pinball", net, bet)
-        return ok({"path": path, "slot": slot, "multiplier": multipliers[slot], "payout": payout, "netResult": net, "balance": after})
+        return ok({"path": path, "slot": slot, "multiplier": multipliers[slot], "multipliers": multipliers, "payout": payout, "netResult": net, "balance": after})
 
     @app.get("/api/chicken/current")
     @auth_required
