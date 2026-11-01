@@ -6,6 +6,7 @@ import functools
 import hashlib
 import hmac
 import json
+import math
 import os
 import re
 import secrets
@@ -31,6 +32,7 @@ LAST_CLEANUP_AT = 0.0
 AUTH_TOUCH_SECONDS = 5 * 60
 CLEANUP_INTERVAL_SECONDS = 15 * 60
 MAX_UPGRADE_LEVEL = 5
+CHICKEN_MULTIPLIERS = (1.2, 1.5, 1.9, 2.4, 3.0)
 UPGRADES = {
     "starting_capital": {"name": "Startkapital", "base_cost": 750, "effect": "+250 Chips Neustartkapital je Level"},
     "luck": {"name": "Glück", "base_cost": 1500, "effect": "+2 % Rettungschance je Level"},
@@ -141,6 +143,10 @@ CREATE TABLE IF NOT EXISTS active_rounds (
  id TEXT PRIMARY KEY, user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE, bet REAL NOT NULL CHECK (bet > 0),
  deck_json TEXT NOT NULL, player_cards_json TEXT NOT NULL, dealer_cards_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
  luck_used INTEGER NOT NULL DEFAULT 0 CHECK (luck_used IN (0,1)), doubled INTEGER NOT NULL DEFAULT 0 CHECK (doubled IN (0,1)));
+CREATE TABLE IF NOT EXISTS active_chicken_rounds (
+ id TEXT PRIMARY KEY, user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+ bet REAL NOT NULL CHECK (bet >= 5), steps INTEGER NOT NULL DEFAULT 0 CHECK (steps BETWEEN 0 AND 5),
+ created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS completed_rounds (
  id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, bet REAL NOT NULL,
  outcome TEXT NOT NULL CHECK (outcome IN ('win','loss','push','blackjack')), player_cards_json TEXT NOT NULL,
@@ -254,8 +260,9 @@ def restore_empty_balance(user_id):
     db.execute("""UPDATE balances SET amount=1000+250*COALESCE(
                   (SELECT level FROM user_upgrades WHERE user_id=? AND upgrade_key='starting_capital'),0),
                   updated_at=? WHERE user_id=? AND amount=0
-                  AND NOT EXISTS (SELECT 1 FROM active_rounds WHERE user_id=?)""",
-               (user_id, utc_now(), user_id, user_id))
+                  AND NOT EXISTS (SELECT 1 FROM active_rounds WHERE user_id=?)
+                  AND NOT EXISTS (SELECT 1 FROM active_chicken_rounds WHERE user_id=?)""",
+               (user_id, utc_now(), user_id, user_id, user_id))
     return db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
 
 
@@ -668,6 +675,8 @@ def make_app():
         with transaction() as db:
             register_action(g.auth["user_id"],payload.get("actionId"),"start")
             if load_round(g.auth["user_id"]): raise ApiError(409,"Es läuft bereits eine Runde.")
+            if db.execute("SELECT 1 FROM active_chicken_rounds WHERE user_id=?", (g.auth["user_id"],)).fetchone():
+                raise ApiError(409, "Beende zuerst die laufende Chicken-Runde.")
             if bet<5 or bet*2 != round(bet*2): raise ApiError(400,"Der Einsatz muss mindestens 5 Chips betragen.")
             balance=db.execute("SELECT amount FROM balances WHERE user_id=?",(g.auth["user_id"],)).fetchone()
             if not balance or bet>balance["amount"]: raise ApiError(400,"Für diesen Einsatz reichen die Chips nicht aus.")
@@ -729,6 +738,85 @@ def make_app():
     def current():
         round_=load_round(g.auth["user_id"]); balance=get_db().execute("SELECT amount FROM balances WHERE user_id=?",(g.auth["user_id"],)).fetchone()["amount"]
         return ok({"round":public_round(round_,balance) if round_ else None,"balance":balance})
+
+    def chicken_data(row, balance, result=None):
+        active = {"bet": row["bet"], "steps": row["steps"], "payout": round(row["bet"] * CHICKEN_MULTIPLIERS[row["steps"] - 1] * 2) / 2 if row["steps"] else 0} if row else None
+        return {"round": active, "balance": balance, "result": result}
+
+    def finish_chicken(db, row, won):
+        user_id, bet = row["user_id"], row["bet"]
+        balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
+        payout = round(bet * CHICKEN_MULTIPLIERS[row["steps"] - 1] * 2) / 2 if won else 0
+        after = balance + payout
+        refilled = after == 0
+        if refilled:
+            after = 1000 + 250 * upgrade_levels(user_id)["starting_capital"]
+        net = payout - bet
+        db.execute("UPDATE balances SET amount=?,updated_at=? WHERE user_id=?", (after, utc_now(), user_id))
+        db.execute("DELETE FROM active_chicken_rounds WHERE user_id=?", (user_id,))
+        stats = db.execute("SELECT current_streak,best_win_streak FROM player_stats WHERE user_id=?", (user_id,)).fetchone()
+        streak = (max(0, stats["current_streak"]) + 1) if won else (min(0, stats["current_streak"]) - 1)
+        db.execute("""UPDATE player_stats SET rounds_played=rounds_played+1,wins=wins+?,losses=losses+?,
+                      highest_balance=MAX(highest_balance,?),biggest_win=MAX(biggest_win,?),
+                      total_won=total_won+?,total_lost=total_lost+?,current_streak=?,
+                      best_win_streak=MAX(best_win_streak,?) WHERE user_id=?""",
+                   (int(won), int(not won), after, max(0, net), max(0, net), max(0, -net), streak, max(0, streak), user_id))
+        return chicken_data(None, after, {"won": won, "steps": row["steps"], "payout": payout, "netResult": net, "refilled": refilled})
+
+    @app.get("/api/chicken/current")
+    @auth_required
+    def chicken_current():
+        db = get_db()
+        row = db.execute("SELECT * FROM active_chicken_rounds WHERE user_id=?", (g.auth["user_id"],)).fetchone()
+        balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (g.auth["user_id"],)).fetchone()["amount"]
+        return ok(chicken_data(row, balance))
+
+    @app.post("/api/chicken/start")
+    @auth_required
+    def chicken_start():
+        payload = body()
+        try: bet = float(payload.get("bet"))
+        except (TypeError, ValueError): bet = 0
+        if not math.isfinite(bet) or bet < 5 or bet * 2 != round(bet * 2):
+            raise ApiError(400, "Der Einsatz muss mindestens 5 Chips betragen und in 0,5er-Schritten liegen.")
+        with transaction() as db:
+            register_action(g.auth["user_id"], payload.get("actionId"), "chicken-start")
+            if load_round(g.auth["user_id"]) or db.execute("SELECT 1 FROM active_chicken_rounds WHERE user_id=?", (g.auth["user_id"],)).fetchone():
+                raise ApiError(409, "Beende zuerst die laufende Runde.")
+            balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (g.auth["user_id"],)).fetchone()["amount"]
+            if bet > balance: raise ApiError(400, "Für diesen Einsatz reichen die Chips nicht aus.")
+            db.execute("UPDATE balances SET amount=amount-?,updated_at=? WHERE user_id=?", (bet, utc_now(), g.auth["user_id"]))
+            db.execute("INSERT INTO active_chicken_rounds (id,user_id,bet,steps,created_at) VALUES (?,?,?,0,?)",
+                       (str(uuid.uuid4()), g.auth["user_id"], bet, utc_now()))
+        return ok(chicken_data({"bet": bet, "steps": 0}, balance - bet), "Chicken-Runde gestartet.", 201)
+
+    @app.post("/api/chicken/step")
+    @auth_required
+    def chicken_step():
+        payload = body()
+        with transaction() as db:
+            register_action(g.auth["user_id"], payload.get("actionId"), "chicken-step")
+            row = db.execute("SELECT * FROM active_chicken_rounds WHERE user_id=?", (g.auth["user_id"],)).fetchone()
+            if not row: raise ApiError(409, "Es läuft keine Chicken-Runde.")
+            if secrets.randbelow(100) >= 80:
+                return ok(finish_chicken(db, row, False), "Der Schritt ging schief.")
+            steps = row["steps"] + 1
+            db.execute("UPDATE active_chicken_rounds SET steps=? WHERE user_id=?", (steps, g.auth["user_id"]))
+            row = dict(row) | {"steps": steps}
+            if steps == len(CHICKEN_MULTIPLIERS):
+                return ok(finish_chicken(db, row, True), "Alle Schritte geschafft!")
+            balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (g.auth["user_id"],)).fetchone()["amount"]
+            return ok(chicken_data(row, balance), "Schritt geschafft.")
+
+    @app.post("/api/chicken/cashout")
+    @auth_required
+    def chicken_cashout():
+        payload = body()
+        with transaction() as db:
+            register_action(g.auth["user_id"], payload.get("actionId"), "chicken-cashout")
+            row = db.execute("SELECT * FROM active_chicken_rounds WHERE user_id=?", (g.auth["user_id"],)).fetchone()
+            if not row or row["steps"] == 0: raise ApiError(409, "Gehe zuerst mindestens einen Schritt.")
+            return ok(finish_chicken(db, row, True), "Gewinn gesichert.")
 
     @app.get("/api/upgrades")
     @auth_required

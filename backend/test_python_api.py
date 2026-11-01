@@ -49,6 +49,32 @@ class WattCasinoApiTests(unittest.TestCase):
         in_round = self.request("GET", "/api/auth/me", token=token)
         self.assertEqual(in_round.get_json()["data"]["game"]["balance"], 0)
 
+    def test_chicken_round_survives_reload_and_cashout(self):
+        player = {"username": "ChickenPlayer", "password": "SicheresTestpasswort9"}
+        token = self.request("POST", "/api/auth/register", player).get_json()["data"]["token"]
+        started = self.request("POST", "/api/chicken/start", {"bet": 1000, "actionId": "chicken-start-action-0001"}, token)
+        self.assertEqual(started.status_code, 201)
+        self.assertEqual(started.get_json()["data"]["balance"], 0)
+        current = self.request("GET", "/api/chicken/current", token=token)
+        self.assertEqual(current.get_json()["data"]["balance"], 0)
+        self.assertEqual(current.get_json()["data"]["round"]["steps"], 0)
+        with patch("app.secrets.randbelow", return_value=0):
+            step = self.request("POST", "/api/chicken/step", {"actionId": "chicken-step-action-0001"}, token)
+        self.assertEqual(step.get_json()["data"]["round"]["steps"], 1)
+        self.assertEqual(step.get_json()["data"]["round"]["payout"], 1200)
+        duplicate = self.request("POST", "/api/chicken/step", {"actionId": "chicken-step-action-0001"}, token)
+        self.assertEqual(duplicate.status_code, 409)
+        cashed = self.request("POST", "/api/chicken/cashout", {"actionId": "chicken-cashout-action-0001"}, token)
+        self.assertEqual(cashed.get_json()["data"]["balance"], 1200)
+        self.assertIsNone(cashed.get_json()["data"]["round"])
+
+        started = self.request("POST", "/api/chicken/start", {"bet": 1200, "actionId": "chicken-start-action-0002"}, token)
+        self.assertEqual(started.status_code, 201)
+        with patch("app.secrets.randbelow", return_value=99):
+            lost = self.request("POST", "/api/chicken/step", {"actionId": "chicken-step-action-0002"}, token)
+        self.assertFalse(lost.get_json()["data"]["result"]["won"])
+        self.assertEqual(lost.get_json()["data"]["balance"], 1000)
+
     def test_auth_game_admin_and_suspension(self):
         player = {"username": "PythonPlayer", "password": "SicheresTestpasswort9"}
         registered = self.request("POST", "/api/auth/register", player)
