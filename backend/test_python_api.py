@@ -12,7 +12,7 @@ os.environ["DATABASE_PATH"] = str(TEMP_DB)
 os.environ["NODE_ENV"] = "development"
 os.environ["ADMIN_PASSWORD"] = "2011"
 
-from app import app, outcome as determine_outcome, hand_value, blackjack as is_blackjack  # noqa: E402
+from app import app, get_db, outcome as determine_outcome, hand_value, blackjack as is_blackjack  # noqa: E402
 
 
 class WattCasinoApiTests(unittest.TestCase):
@@ -30,6 +30,24 @@ class WattCasinoApiTests(unittest.TestCase):
         card = lambda rank: {"rank": rank, "suit": "♠"}
         # draw() nimmt vom Ende: Spieler 10/7, Dealer 9/8.
         return [card("2"), card("3"), card("8"), card("9"), card("7"), card("10")]
+
+    def test_zero_balance_is_restored_on_next_request(self):
+        player = {"username": "EmptyPlayer", "password": "SicheresTestpasswort9"}
+        token = self.request("POST", "/api/auth/register", player).get_json()["data"]["token"]
+        with app.app_context():
+            db = get_db()
+            db.execute("UPDATE balances SET amount=0 WHERE user_id=(SELECT id FROM users WHERE username=?)", (player["username"],))
+        me = self.request("GET", "/api/auth/me", token=token)
+        self.assertEqual(me.status_code, 200)
+        self.assertEqual(me.get_json()["data"]["game"]["balance"], 1000)
+        again = self.request("GET", "/api/auth/me", token=token)
+        self.assertEqual(again.get_json()["data"]["game"]["balance"], 1000)
+
+        with patch("app.create_shoe", side_effect=self.non_terminal_shoe):
+            started = self.request("POST", "/api/game/start", {"bet": 1000, "actionId": "empty-all-in-action-0001"}, token)
+        self.assertEqual(started.status_code, 201)
+        in_round = self.request("GET", "/api/auth/me", token=token)
+        self.assertEqual(in_round.get_json()["data"]["game"]["balance"], 0)
 
     def test_auth_game_admin_and_suspension(self):
         player = {"username": "PythonPlayer", "password": "SicheresTestpasswort9"}

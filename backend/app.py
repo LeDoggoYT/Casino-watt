@@ -247,6 +247,18 @@ def validate_credentials(username, password) -> tuple[str, str]:
     return username, normalise(username)
 
 
+def restore_empty_balance(user_id):
+    # Ein laufender All-in-Einsatz kann vorübergehend null verfügbare Chips lassen.
+    # Die Auffüllung erfolgt erst nach dem Abschluss dieser Runde.
+    db = get_db()
+    db.execute("""UPDATE balances SET amount=1000+250*COALESCE(
+                  (SELECT level FROM user_upgrades WHERE user_id=? AND upgrade_key='starting_capital'),0),
+                  updated_at=? WHERE user_id=? AND amount=0
+                  AND NOT EXISTS (SELECT 1 FROM active_rounds WHERE user_id=?)""",
+               (user_id, utc_now(), user_id, user_id))
+    return db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
+
+
 def auth_required(view):
     @functools.wraps(view)
     def wrapped(*args, **kwargs):
@@ -267,6 +279,7 @@ def auth_required(view):
             raise ApiError(401, "Die Sitzung ist abgelaufen. Bitte erneut anmelden.")
         if session["is_suspended"]:
             raise ApiError(403, "Dieses Spielerkonto wurde gesperrt.", {"suspended": True, "reason": session["suspension_reason"] or "Kein Grund angegeben."})
+        restore_empty_balance(session["user_id"])
         g.auth = dict(session)
         now = utc_now()
         # SQLite serialisiert Schreibzugriffe. Diese Zeitstempel müssen nicht bei jedem
@@ -604,8 +617,9 @@ def make_app():
         fallback=b"$2b$12$C6UzMDM.H6dfI/f/IKcEe.5ZxQwDPZ9vtQd0Z4E4YW/.GQqX9vJ6G"
         if not bcrypt.checkpw(password.encode(), (user["password_hash"].encode() if user else fallback)): raise ApiError(401,"Benutzername oder Passwort ist falsch.")
         if user["is_suspended"]: raise ApiError(403,"Dieses Spielerkonto wurde gesperrt.",{"suspended":True,"reason":user["suspension_reason"] or "Kein Grund angegeben."})
+        balance = restore_empty_balance(user["id"])
         token,expires=issue_session(user["id"])
-        return ok({"token":token,"expiresAt":expires,"user":{"username":user["username"],"balance":user["balance"]}},"Angemeldet.")
+        return ok({"token":token,"expiresAt":expires,"user":{"username":user["username"],"balance":balance}},"Angemeldet.")
 
     @app.post("/api/auth/logout")
     @auth_required
