@@ -18,6 +18,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import market
 import bcrypt
 from flask import Flask, g, jsonify, request, send_from_directory
 
@@ -34,17 +35,19 @@ CLEANUP_INTERVAL_SECONDS = 15 * 60
 MAX_UPGRADE_LEVEL = 5
 CHICKEN_MULTIPLIERS = (0.8, 1.0, 2.4, 3.0, 3.8, 4.8, 6.0, 7.5, 9.5)
 CHICKEN_SUCCESS_CHANCES = (90, 85, 80, 75, 70, 65, 60, 55, 50)
-LOOT_BOXES = {"bronze": {"name": "Bronze", "price": 50}, "emerald": {"name": "Smaragd", "price": 250}, "royal": {"name": "Royal", "price": 1000}}
-LOOT_REWARDS = (("Klein", 0.25, 40), ("Normal", 0.5, 25), ("Selten", 1, 20), ("Episch", 2, 10), ("Legendär", 5, 4), ("Jackpot", 10, 1))
-LOOT_BOXES["tech"] = {"name": "Technik-Pack", "price": 250, "kind": "items"}
-LOOT_ITEMS = [
-    {"key": "airpods-4", "name": "AirPods 4", "chance": 40, "image": "assets/loot/airpods-4.jpg"},
-    {"key": "airpods-max", "name": "AirPods Max", "chance": 25, "image": "assets/loot/airpods-max.jpg"},
-    {"key": "watch-10", "name": "Apple Watch Series 10", "chance": 20, "image": "assets/loot/watch-10.jpg"},
-    {"key": "iphone-16", "name": "iPhone 16", "chance": 10, "image": "assets/loot/iphone-16.jpg"},
-    {"key": "watch-ultra", "name": "Apple Watch Ultra 2", "chance": 4, "image": "assets/loot/watch-ultra.jpg"},
-    {"key": "iphone-pro", "name": "iPhone 16 Pro", "chance": 1, "image": "assets/loot/iphone-pro.jpg"},
-]
+LOOT_CATALOG = json.loads((BASE_DIR / "loot_catalog.json").read_text(encoding="utf-8"))
+LOOT_ITEMS = LOOT_CATALOG["items"]
+LOOT_ITEM_MAP = {item["key"]: item for item in LOOT_ITEMS}
+LOOT_BOXES = {}
+for pack in LOOT_CATALOG["packs"]:
+    if sum(reward["chance"] for reward in pack["rewards"]) != 100:
+        raise RuntimeError("Pack-Chancen müssen 100 Prozent ergeben.")
+    rewards = [{**LOOT_ITEM_MAP[reward["key"]], "chance": reward["chance"]} for reward in pack["rewards"]]
+    # Integer cent arithmetic; fair expected reference value, rounded down to half a chip.
+    weighted_cents = sum(round(item["valueChf"] * 100) * item["chance"] for item in rewards)
+    LOOT_BOXES[pack["key"]] = {**pack, "kind": "items", "rewards": rewards,
+                              "expectedValue": weighted_cents / 10000,
+                              "price": (weighted_cents // 5000) / 2}
 UPGRADES = {
     "starting_capital": {"name": "Startkapital", "base_cost": 750, "effect": "+250 Chips Neustartkapital je Level"},
     "luck": {"name": "Glück", "base_cost": 1500, "effect": "+2 % Rettungschance je Level"},
@@ -216,7 +219,11 @@ CREATE INDEX IF NOT EXISTS idx_admin_audit_target ON admin_audit_log(target_user
 def initialise_database(app: Flask) -> None:
     with app.app_context():
         db = get_db()
-        db.executescript(SCHEMA)
+        db.executescript(SCHEMA + market.SCHEMA)
+        with transaction():
+            if "item_key" not in {row["name"] for row in db.execute("PRAGMA table_info(loot_openings)")}:
+                db.execute("ALTER TABLE loot_openings ADD COLUMN item_key TEXT")
+            db.execute("UPDATE loot_openings SET item_key=(SELECT item_key FROM loot_inventory WHERE opening_id=loot_openings.id) WHERE item_key IS NULL")
         # Bestehende Fünf-Spuren-Runden inklusive Einsatz unverändert übernehmen.
         with transaction():
             chicken_schema = db.execute("SELECT sql FROM sqlite_master WHERE name='active_chicken_rounds'").fetchone()["sql"]
@@ -933,7 +940,7 @@ def make_app():
         return ok(data)
 
     def loot_history(user_id):
-        return [dict(row) for row in get_db().execute("""SELECT o.id,o.box_key,o.price,o.payout,o.reward_index,o.created_at,i.item_key
+        return [dict(row) for row in get_db().execute("""SELECT o.id,o.box_key,o.price,o.payout,o.reward_index,o.created_at,o.item_key
                    FROM loot_openings o LEFT JOIN loot_inventory i ON i.opening_id=o.id
                    WHERE o.user_id=? ORDER BY o.id DESC LIMIT 10""", (user_id,))]
 
@@ -943,8 +950,8 @@ def make_app():
     @app.get("/api/loot/current")
     @auth_required
     def loot_current():
-        return ok({"boxes": [{"key": key, **box} for key, box in LOOT_BOXES.items()],
-                   "rewards": [{"name": name, "multiplier": multiplier, "chance": chance} for name, multiplier, chance in LOOT_REWARDS],
+        return ok({"catalogVersion": 2, "boxes": list(LOOT_BOXES.values()),
+                   "currency": LOOT_CATALOG["currency"], "checkedAt": LOOT_CATALOG["checkedAt"], "pricing": LOOT_CATALOG["pricing"],
                    "history": loot_history(g.auth["user_id"]), "items": LOOT_ITEMS, "inventory": loot_inventory(g.auth["user_id"]),
                    "balance": get_db().execute("SELECT amount FROM balances WHERE user_id=?", (g.auth["user_id"],)).fetchone()["amount"]})
 
@@ -962,35 +969,18 @@ def make_app():
             price = LOOT_BOXES[key]["price"]
             balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
             if balance < price: raise ApiError(400, "Nicht genügend Chips für diese Box.")
-            if key == "tech":
-                roll = secrets.randbelow(100)
-                for index, item in enumerate(LOOT_ITEMS):
-                    if roll < item["chance"]: break
-                    roll -= item["chance"]
-                db.execute("UPDATE balances SET amount=amount-?,updated_at=? WHERE user_id=?", (price, utc_now(), user_id))
-                opening = db.execute("INSERT INTO loot_openings(user_id,box_key,price,payout,reward_index,created_at) VALUES (?,?,?,0,?,?)", (user_id,key,price,index,utc_now()))
-                db.execute("INSERT INTO loot_inventory(opening_id,user_id,item_key) VALUES (?,?,?)", (opening.lastrowid,user_id,item["key"]))
-                after = restore_empty_balance(user_id)
-                return ok({"balance": after, "item": item, "rewardIndex": index,
-                           "history": loot_history(user_id), "inventory": loot_inventory(user_id)})
+            market.advance(db, LOOT_ITEMS)
             roll = secrets.randbelow(100)
-            for index, (_, multiplier, chance) in enumerate(LOOT_REWARDS):
-                if roll < chance: break
-                roll -= chance
-            payout = price * multiplier
-            net = payout - price
-            after = balance + net
-            db.execute("UPDATE balances SET amount=?,updated_at=? WHERE user_id=?", (after, utc_now(), user_id))
-            db.execute("INSERT INTO loot_openings(user_id,box_key,price,payout,reward_index,created_at) VALUES (?,?,?,?,?,?)", (user_id,key,price,payout,index,utc_now()))
-            stats = db.execute("SELECT current_streak FROM player_stats WHERE user_id=?", (user_id,)).fetchone()
-            streak = max(0,stats["current_streak"])+1 if net>0 else min(0,stats["current_streak"])-1 if net<0 else stats["current_streak"]
-            db.execute("""UPDATE player_stats SET rounds_played=rounds_played+1,wins=wins+?,losses=losses+?,pushes=pushes+?,
-                          highest_balance=MAX(highest_balance,?),biggest_win=MAX(biggest_win,?),total_won=total_won+?,
-                          total_lost=total_lost+?,current_streak=?,best_win_streak=MAX(best_win_streak,?) WHERE user_id=?""",
-                       (int(net>0),int(net<0),int(net==0),after,max(0,net),max(0,net),max(0,-net),streak,max(0,streak),user_id))
-            record_big_win(db,user_id,"Loot Boxen",net,price)
-            history = loot_history(user_id)
-        return ok({"balance":after,"payout":payout,"netResult":net,"rewardIndex":index,"history":history})
+            for index, item in enumerate(LOOT_BOXES[key]["rewards"]):
+                if roll < item["chance"]: break
+                roll -= item["chance"]
+            db.execute("UPDATE balances SET amount=amount-?,updated_at=? WHERE user_id=?", (price, utc_now(), user_id))
+            opening = db.execute("INSERT INTO loot_openings(user_id,box_key,price,payout,reward_index,created_at,item_key) VALUES (?,?,?,0,?,?,?)", (user_id,key,price,index,utc_now(),item["key"]))
+            db.execute("INSERT INTO loot_inventory(opening_id,user_id,item_key) VALUES (?,?,?)", (opening.lastrowid,user_id,item["key"]))
+            db.execute("INSERT INTO market_supply_events(item_key,delta,at) VALUES (?,1,?)", (item["key"],time.time()))
+            after = restore_empty_balance(user_id)
+            return ok({"balance": after, "item": item, "rewardIndex": index, "boxKey": key,
+                       "history": loot_history(user_id), "inventory": loot_inventory(user_id)})
 
     @app.post("/api/pinball/play")
     @auth_required
@@ -1244,6 +1234,7 @@ def make_app():
             now=utc_now(); db.execute("UPDATE users SET is_suspended=?,suspension_reason=?,suspended_at=? WHERE id=?",(int(suspended),reason if suspended else None,now if suspended else None,player_id)); audit(player_id,"suspend" if suspended else "unsuspend",{"suspended":bool(player["is_suspended"]),"reason":player["suspension_reason"]},{"suspended":suspended,"reason":reason if suspended else None},reason if suspended else None)
         return ok({"suspended":suspended,"reason":reason if suspended else None},"Spieler gesperrt." if suspended else "Sperre aufgehoben.")
 
+    market.install(app, globals())
     return app
 
 
