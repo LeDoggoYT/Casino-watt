@@ -476,8 +476,8 @@ def register_action(user_id, action_id, action_type):
         raise ApiError(409, "Diese Aktion wurde bereits verarbeitet.")
 
 
-def record_big_win(db, user_id, game, amount):
-    if amount >= 1000:
+def record_big_win(db, user_id, game, amount, bet):
+    if amount > 10000 or amount + bet > 5 * bet:
         db.execute("INSERT INTO big_wins (user_id,game,amount,created_at) VALUES (?,?,?,?)", (user_id, game, amount, utc_now()))
         db.execute("DELETE FROM big_wins WHERE id < (SELECT MAX(id) - 1000 FROM big_wins)")
 
@@ -507,7 +507,7 @@ def settle(round_, result, levels=None):
     duration = max(0, min(86400, int((datetime.fromisoformat(completed.replace("Z","+00:00")) - datetime.fromisoformat(round_["createdAt"].replace("Z","+00:00"))).total_seconds())))
     net = after - before
     if result in {"win", "blackjack"}:
-        record_big_win(db, round_["userId"], "Blackjack", round(payout * 2) / 2 - round_["bet"])
+        record_big_win(db, round_["userId"], "Blackjack", round(payout * 2) / 2 - round_["bet"], round_["bet"])
     db.execute("UPDATE balances SET amount=?,updated_at=? WHERE user_id=?", (after, completed, round_["userId"]))
     streak = stats["current_streak"]
     if result in {"win","blackjack"}: streak = streak + 1 if streak > 0 else 1
@@ -774,7 +774,7 @@ def make_app():
         if refilled:
             after = 1000 + 250 * upgrade_levels(user_id)["starting_capital"]
         net = payout - bet
-        record_big_win(db, user_id, "Chicken", net)
+        record_big_win(db, user_id, "Chicken", net, bet)
         db.execute("UPDATE balances SET amount=?,updated_at=? WHERE user_id=?", (after, utc_now(), user_id))
         db.execute("DELETE FROM active_chicken_rounds WHERE user_id=?", (user_id,))
         stats = db.execute("SELECT current_streak,best_win_streak FROM player_stats WHERE user_id=?", (user_id,)).fetchone()
