@@ -1,0 +1,209 @@
+{
+  "currency": "CHF",
+  "checkedAt": "2026-11-01",
+  "pricing": "Gewichteter Referenzwert, ohne Aufschlag; auf 0,5 Chips abgerundet. 1 CHF Referenzwert entspricht rechnerisch 1 Spielchip, nicht einem Auszahlungs- oder Kaufwert.",
+  "items": [
+    {
+      "key": "airpods-4",
+      "name": "AirPods 4",
+      "valueChf": 99,
+      "image": "assets/loot/airpods-4.jpg",
+      "color": "#61d4bd",
+      "source": "https://www.dq-solutions.ch/de/apple/airpods/alle-airpods"
+    },
+    {
+      "key": "airpods-max",
+      "name": "AirPods Max",
+      "valueChf": 399,
+      "image": "assets/loot/preview-audio.png",
+      "color": "#74a9ff",
+      "source": "https://www.dq-solutions.ch/de/apple/airpods/alle-airpods"
+    },
+    {
+      "key": "watch-10",
+      "name": "Apple Watch Series 10 · 42 mm",
+      "valueChf": 327,
+      "image": "assets/loot/watch-10.jpg",
+      "color": "#bb91f2",
+      "source": "https://www.galaxus.ch/de/s3/product/apple-watch-series-10-42-mm-ohne-sim-smartwatch-49221166?tagIds=359"
+    },
+    {
+      "key": "iphone-16",
+      "name": "iPhone 16 · 128 GB",
+      "valueChf": 799,
+      "image": "assets/loot/preview-tech.png",
+      "color": "#fbab66",
+      "source": "https://www.apple.com/ch-de/shop/buy-iphone/iphone-16"
+    },
+    {
+      "key": "watch-ultra",
+      "name": "Apple Watch Ultra 2 · 49 mm",
+      "valueChf": 599,
+      "image": "assets/loot/watch-ultra.jpg",
+      "color": "#f079ac",
+      "source": "https://www.galaxus.ch/de/s3/product/apple-watch-ultra-2-2024-49-mm-4g-smartwatch-49221267"
+    },
+    {
+      "key": "iphone-pro",
+      "name": "iPhone 16 Pro · 128 GB",
+      "valueChf": 961.95,
+      "image": "assets/loot/iphone-pro.jpg",
+      "color": "#efd85b",
+      "source": "https://www.toppreise.ch/produktsuche?q=apple+iphone+16+pro+128+gb",
+      "priceNote": "Preisvergleich, günstigste gelistete Neuware; Farbe kann vom Bild abweichen."
+    },
+    {
+      "key": "earpods",
+      "name": "EarPods · 3,5 mm",
+      "valueChf": 19,
+      "image": "assets/loot/earpods.jpg",
+      "color": "#b4c3d4",
+      "source": "https://www.apple.com/ch-de/shop/product/mwu53zm/a/earpods-35-mm-kopfh%C3%B6rerstecker"
+    },
+    {
+      "key": "dualsense",
+      "name": "Sony DualSense · Weiss",
+      "valueChf": 79,
+      "image": "assets/loot/dualsense.jpg",
+      "color": "#82db78",
+      "source": "https://www.dq-solutions.ch/de/sony-dualsense-playstation-wireless-gaming-controller-izs102"
+    },
+    {
+      "key": "switch2",
+      "name": "Nintendo Switch 2",
+      "valueChf": 390.95,
+      "image": "assets/loot/switch2.png",
+      "color": "#f17370",
+      "source": "https://www.mediamarkt.ch/de/specials/nintendo-special"
+    },
+    {
+      "key": "ps5",
+      "name": "PlayStation 5 Slim · Disc",
+      "valueChf": 649,
+      "image": "assets/loot/preview-gaming.png",
+      "color": "#8c91ff",
+      "source": "https://www.galaxus.ch/fr/s1/product/sony-playstation-5-slim-disc-edition-console-de-jeu-39726201"
+    },
+    {
+      "key": "sandero",
+      "name": "Dacia Sandero",
+      "valueChf": 15290,
+      "image": "assets/loot/sandero.png",
+      "color": "#c5d976",
+      "source": "https://de.dacia.ch/modelle/sandero.html",
+      "priceNote": "Neuwagen ab Preis, Expression TCe 100. Fahrzeugbilder sind Modellillustrationen; Ausstattung kann abweichen."
+    },
+    {
+      "key": "golf",
+      "name": "Volkswagen Golf",
+      "valueChf": 32300,
+      "image": "assets/loot/golf-cutout.png",
+      "color": "#64c8ee",
+      "source": "https://www.volkswagen.ch/de/konfigurator.html/__app/der-neue-golf.app",
+      "priceNote": "Schweizer ab Preis. Foto zeigt einen Golf VIII Style von 2020 als Modellillustration."
+    },
+    {
+      "key": "porsche",
+      "name": "Porsche 911 Carrera S",
+      "valueChf": 174600,
+      "image": "assets/loot/preview-garage.png",
+      "color": "#da90bd",
+      "source": "https://www.porsche.com/swiss/de/models/",
+      "priceNote": "Schweizer ab Preis, Modelljahr 2027. Foto zeigt einen Carrera S der Modellreihe 992 als Illustration; Ausstattung kann abweichen."
+    }
+  ],
+  "packs": [
+    {
+      "key": "audio",
+      "name": "Audio-Lounge",
+      "description": "EarPods und AirPods",
+      "cover": "airpods-max",
+      "rewards": [
+        {
+          "key": "earpods",
+          "chance": 60
+        },
+        {
+          "key": "airpods-4",
+          "chance": 35
+        },
+        {
+          "key": "airpods-max",
+          "chance": 5
+        }
+      ]
+    },
+    {
+      "key": "gaming",
+      "name": "Gaming-Zone",
+      "description": "Controller und Konsolen",
+      "cover": "ps5",
+      "rewards": [
+        {
+          "key": "dualsense",
+          "chance": 50
+        },
+        {
+          "key": "switch2",
+          "chance": 35
+        },
+        {
+          "key": "ps5",
+          "chance": 15
+        }
+      ]
+    },
+    {
+      "key": "tech",
+      "name": "Technik-Pack",
+      "description": "iPhones, AirPods und Watches",
+      "cover": "iphone-16",
+      "rewards": [
+        {
+          "key": "airpods-4",
+          "chance": 40
+        },
+        {
+          "key": "airpods-max",
+          "chance": 25
+        },
+        {
+          "key": "watch-10",
+          "chance": 20
+        },
+        {
+          "key": "iphone-16",
+          "chance": 10
+        },
+        {
+          "key": "watch-ultra",
+          "chance": 4
+        },
+        {
+          "key": "iphone-pro",
+          "chance": 1
+        }
+      ]
+    },
+    {
+      "key": "garage",
+      "name": "Dream Garage",
+      "description": "Vom Sandero bis zum Porsche",
+      "cover": "porsche",
+      "rewards": [
+        {
+          "key": "sandero",
+          "chance": 70
+        },
+        {
+          "key": "golf",
+          "chance": 25
+        },
+        {
+          "key": "porsche",
+          "chance": 5
+        }
+      ]
+    }
+  ]
+}
