@@ -1043,3 +1043,195 @@ a:focus-visible {
   .brand-name { display: none; }
   .nav-link { padding: 0 6px; font-size: 8px; }
 }
+
+/* Einheitliche, ruhige Oberfläche */
+:root {
+  --page: #101715;
+  --panel: #1b2521;
+  --panel-deep: #17201d;
+  --line: #34433b;
+  --line-soft: #2b3932;
+  --felt: #14523f;
+  --felt-dark: #103c30;
+  --cream: #f4f3ec;
+  --muted: #aebbb1;
+  --gold: #d5b875;
+  --gold-light: #ead59b;
+  --red: #aa5758;
+  --shadow: 0 16px 48px rgb(3 12 8 / 22%);
+  --radius: 18px;
+  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body {
+  background: radial-gradient(circle at 50% 0, #1b3028 0, var(--page) 44rem);
+  font-family: var(--font-ui);
+  line-height: 1.5;
+}
+
+button, input, textarea, summary { font-family: var(--font-ui); }
+button, input, textarea { font-size: 14px; }
+button { transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease; }
+input:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.site-header {
+  min-height: 76px;
+  padding-inline: max(24px, calc((100vw - 1440px) / 2));
+  background: rgb(16 23 21 / 88%);
+  backdrop-filter: blur(16px);
+}
+.brand-mark { width: 38px; height: 38px; border-radius: 11px; background: #203329; transform: none; }
+.brand-mark span { transform: none; font-size: 20px; font-weight: 700; }
+.brand-name { font-size: 18px; font-weight: 650; letter-spacing: -.035em; }
+.brand-name strong { font-weight: 650; }
+.main-nav { height: auto; margin-left: clamp(22px, 4vw, 56px); gap: 4px; align-items: center; }
+.nav-link { min-height: 38px; padding: 0 15px; border: 1px solid transparent; border-radius: 10px; font-size: 12px; letter-spacing: 0; text-transform: none; }
+.nav-link:hover, .nav-link.is-active { border-color: var(--line); background: #27362e; }
+.header-account { gap: 12px; }
+.avatar-button { border-color: var(--line); background: var(--panel); }
+.avatar-button-copy strong { font-size: 11px; }
+.avatar-button-copy small { font-size: 10px; }
+.logout-button, .pagination button { min-height: 36px; padding: 0 13px; border-color: var(--line); border-radius: 9px; font-size: 11px; letter-spacing: 0; text-transform: none; }
+.logout-button:hover, .pagination button:hover:not(:disabled) { border-color: #647568; background: #26342c; }
+
+.game-shell { gap: 20px; width: min(1440px, calc(100% - 48px)); margin-top: 28px; }
+.table-panel, .control-panel, .leaderboard-panel, .upgrades-panel { border-color: var(--line); }
+.table-panel { background: var(--panel); }
+.table-rail { border-color: #705d3d; background: #2a261e; box-shadow: inset 0 0 0 4px #181e19; }
+.blackjack-table { background-image: radial-gradient(ellipse at 50% 50%, rgb(255 255 255 / 5%), transparent 67%), linear-gradient(145deg, #175c46, #103f32); box-shadow: inset 0 0 65px rgb(0 0 0 / 22%); }
+.table-copy { color: rgb(237 220 172 / 22%); }
+.table-copy span { font-weight: 750; letter-spacing: .16em; }
+.hand-heading h2 { font-family: var(--font-ui); font-size: 12px; letter-spacing: .08em; }
+.hand-score { min-width: 30px; border-radius: 8px; font-family: var(--font-ui); font-weight: 700; }
+.card:not(.card--hidden) { border-radius: 10px; background: #fffefa; box-shadow: 0 7px 16px rgb(0 0 0 / 23%); }
+.card--hidden { border-radius: 10px; }
+.game-message { border-radius: 12px; background: rgb(11 42 32 / 91%); }
+.game-message strong { font-size: 15px; font-weight: 600; }
+.message-kicker { font-size: 10px; }
+.account-strip { gap: 18px; padding: 26px 24px; }
+.account-item > span, .control-heading h2 { font-family: var(--font-ui); font-size: 11px; letter-spacing: .04em; text-transform: none; }
+.account-item strong { font-family: var(--font-ui); font-size: clamp(20px, 2vw, 26px); font-weight: 700; letter-spacing: -.04em; }
+.account-item strong small { font-family: var(--font-ui); font-size: 11px; letter-spacing: 0; text-transform: none; }
+.bet-controls { padding-bottom: 24px; }
+.chip { border-style: solid; border-width: 3px; box-shadow: inset 0 0 0 3px rgb(0 0 0 / 12%), 0 4px 11px rgb(0 0 0 / 18%); }
+.chip span { border-color: rgb(255 255 255 / 34%); font-family: var(--font-ui); }
+.chip--10, .chip--25, .chip--50, .chip--100, .chip--500, .chip--1000, .chip--custom, .chip--all { box-shadow: inset 0 0 0 3px rgb(0 0 0 / 12%), 0 4px 11px rgb(0 0 0 / 18%); }
+.action { min-height: 46px; border-color: var(--line); border-radius: 10px; background: #28362e; font-family: var(--font-ui); font-size: 12px; letter-spacing: .01em; text-transform: none; }
+.action:hover:not(:disabled) { background: #324439; }
+.action--primary { border-color: var(--gold); background: var(--gold); }
+.action--new { border-color: var(--line); }
+.rules summary { min-height: 54px; font-family: var(--font-ui); font-size: 12px; letter-spacing: 0; text-transform: none; }
+.rules-content { font-family: var(--font-ui); font-size: 13px; }
+.site-footer { width: min(1440px, calc(100% - 48px)); color: var(--muted); font-family: var(--font-ui); font-size: 11px; letter-spacing: 0; }
+
+.auth-screen, .suspended-screen { background: radial-gradient(circle at 50% 25%, #234034, transparent 35rem); }
+.auth-card, .suspended-card, .admin-login-card { border: 1px solid var(--line); border-radius: 20px; background: var(--panel); box-shadow: var(--shadow); }
+.auth-intro h1, .suspended-card h1, .section-header h1, .profile-header h2 { font-family: var(--font-ui); font-weight: 700; letter-spacing: -.045em; line-height: 1.15; }
+.auth-intro h1 { font-size: clamp(30px, 4vw, 38px); }
+.auth-intro p, .section-header p { font-family: var(--font-ui); font-size: 14px; line-height: 1.6; }
+.auth-intro > span, .section-kicker { font-family: var(--font-ui); font-size: 11px; letter-spacing: .08em; }
+.auth-tab { font-family: var(--font-ui); font-size: 13px; letter-spacing: 0; text-transform: none; }
+.auth-form label { font-family: var(--font-ui); font-size: 12px; letter-spacing: 0; text-transform: none; }
+.auth-form input, .custom-bet-field input { min-height: 48px; border-color: var(--line); border-radius: 10px; background: #111a16; font-family: var(--font-ui); font-size: 14px; }
+.auth-form input:focus, .custom-bet-field input:focus { border-color: var(--gold); }
+.auth-form small, .auth-legal { color: var(--muted); font-size: 11px; }
+.auth-submit, .suspended-logout { min-height: 46px; border-radius: 10px; font-family: var(--font-ui); font-size: 13px; letter-spacing: 0; text-transform: none; }
+.suspension-reason-text { border-radius: 0 10px 10px 0; }
+
+.leaderboard-view, .upgrades-view { width: min(1120px, calc(100% - 48px)); margin: 28px auto; }
+.section-header { padding: 30px 32px; background: var(--panel-deep); }
+.section-header h1 { font-size: 32px; }
+.connection-status { font-family: var(--font-ui); font-size: 12px; }
+.leaderboard-table { font-family: var(--font-ui); font-size: 13px; }
+.leaderboard-table th { color: var(--muted); font-size: 11px; letter-spacing: .04em; }
+.leaderboard-table td { color: var(--cream); }
+.leaderboard-table tbody tr:hover { background: #24342a; }
+.rank-cell { font-family: var(--font-ui); font-weight: 700; }
+.you-badge { border-radius: 6px; }
+.pagination { font-family: var(--font-ui); font-size: 12px; }
+.profile-dialog, .avatar-dialog, .custom-bet-dialog { border-color: var(--line); border-radius: 18px; background: var(--panel); }
+.profile-dialog::backdrop, .avatar-dialog::backdrop, .custom-bet-dialog::backdrop { background: rgb(5 13 9 / 74%); backdrop-filter: blur(5px); }
+.modal-close { width: 36px; height: 36px; border-color: var(--line); background: #26342c; }
+.profile-name, .profile-balance, .upgrade-balance strong, .upgrade-card h2 { font-family: var(--font-ui); font-weight: 700; letter-spacing: -.025em; }
+.profile-stat { background: #1e2a23; }
+.profile-stat span { color: var(--muted); }
+.avatar-picker { border-radius: 14px; background: var(--panel-deep); }
+.avatar-select-button, .avatar-save, .avatar-cancel, .avatar-reselect { border-radius: 9px; font-family: var(--font-ui); font-size: 12px; letter-spacing: 0; text-transform: none; }
+.crop-stage { border-color: var(--line); }
+.upgrade-balance, .upgrade-card { border-color: var(--line); border-radius: 13px; background: #202d25; }
+.daily-bonus { background: linear-gradient(100deg, rgb(213 184 117 / 12%), transparent); }
+.daily-bonus strong { font-family: var(--font-ui); font-size: 17px; }
+.daily-bonus button, .upgrade-card button { border-radius: 9px; font-family: var(--font-ui); font-size: 12px; letter-spacing: 0; text-transform: none; }
+.upgrade-card p { font-family: var(--font-ui); font-size: 13px; }
+.upgrade-level { border-radius: 10px; font-family: var(--font-ui); }
+.custom-bet-field { font-family: var(--font-ui); font-size: 12px; letter-spacing: 0; text-transform: none; }
+
+@media (max-width: 960px) {
+  .site-header { flex-wrap: wrap; gap: 8px 16px; padding: 12px 24px; }
+  .main-nav { margin-left: 0; }
+  .header-account { margin-left: auto; }
+}
+@media (max-width: 640px) {
+  .site-header { padding: 10px 16px; }
+  .main-nav { order: 3; width: 100%; justify-content: space-between; }
+  .nav-link { flex: 1; padding: 0 8px; font-size: 12px; }
+  .game-shell { width: calc(100% - 24px); margin: 14px auto 0; }
+  .table-panel, .control-panel, .leaderboard-panel, .upgrades-panel { border: 1px solid var(--line); border-radius: 14px; }
+  .leaderboard-view, .upgrades-view { width: calc(100% - 24px); margin: 14px auto; }
+  .section-header { gap: 12px; padding: 24px 18px; }
+  .section-header h1 { font-size: 28px; }
+  .upgrade-balance { padding: 12px; }
+  .site-footer { width: 100%; padding: 22px 18px; }
+}
+@media (max-width: 440px) {
+  .brand-name { display: inline; font-size: 16px; }
+  .avatar-button-copy, .header-user { display: none; }
+  .logout-button { padding-inline: 9px; }
+}
+@media (max-width: 360px) {
+  .brand-name { display: none; }
+}
+
+/* Spielauswahl */
+.home-view { width: min(1200px, calc(100% - 48px)); margin: 28px auto 48px; }
+.home-hero { display: flex; min-height: 250px; padding: clamp(28px, 5vw, 56px); align-items: center; justify-content: space-between; gap: 24px; overflow: hidden; border: 1px solid #46614d; border-radius: var(--radius); background: radial-gradient(circle at 80% 50%, #2a654b, transparent 38%), linear-gradient(120deg, #203d30, #173227); box-shadow: var(--shadow); }
+.home-hero h1 { margin: 10px 0 12px; font-size: clamp(34px, 5vw, 58px); font-weight: 750; letter-spacing: -.055em; line-height: 1.08; }
+.home-hero p { max-width: 460px; margin: 0; color: #d0ded2; font-size: 15px; }
+.home-hero-mark { display: grid; width: clamp(110px, 18vw, 190px); aspect-ratio: 1; flex: 0 0 auto; place-items: center; border: 1px solid rgb(234 213 155 / 42%); border-radius: 28%; color: var(--gold-light); font-size: clamp(60px, 10vw, 110px); font-weight: 800; line-height: 1; transform: rotate(-12deg); }
+.games-section { margin-top: 36px; }
+.games-heading { display: flex; margin-bottom: 18px; align-items: end; justify-content: space-between; gap: 16px; }
+.games-heading h2 { margin: 4px 0 0; font-size: 25px; letter-spacing: -.035em; }
+.games-heading > span { color: var(--muted); font-size: 12px; }
+.game-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.game-tile { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: 0 10px 28px rgb(3 12 8 / 12%); }
+.game-tile-art { display: grid; height: 150px; place-items: center; color: rgb(234 213 155 / 70%); background: radial-gradient(circle at 50% 45%, #31513f, #20372d); font-size: 76px; font-weight: 650; line-height: 1; }
+.game-tile-art--blackjack { display: flex; gap: 6px; justify-content: center; color: var(--gold-light); background: radial-gradient(circle at 50% 45%, #28684e, #164734); }
+.game-tile-art--blackjack span:last-child { align-self: center; padding: 7px 12px; border: 1px solid rgb(234 213 155 / 55%); border-radius: 10px; font-size: 30px; transform: rotate(8deg); }
+.game-tile-art--crash { color: #b8dec2; background: radial-gradient(circle, #3d654d, #263d30); }
+.game-tile-art--poker { color: #c5d7c8; background: radial-gradient(circle, #3a5346, #293b32); }
+.game-tile-art--pinball { color: #c5d4ea; background: radial-gradient(circle, #435668, #293744); }
+.game-tile-art--hilo { color: #e5d4a9; background: radial-gradient(circle, #64533e, #3d352b); font-size: 58px; }
+.game-tile-art--chicken { background: radial-gradient(circle, #574f38, #39372b); font-size: 66px; }
+.game-tile-art--slots { color: #e8ce8e; background: radial-gradient(circle, #605038, #37362b); }
+.game-tile-art--loot { color: #d6c5e7; background: radial-gradient(circle, #514560, #34303e); }
+.game-tile-art--mines { color: #e1bcb4; background: radial-gradient(circle, #624744, #3b302f); }
+.game-tile-body { display: flex; min-height: 178px; padding: 22px; flex-direction: column; align-items: flex-start; }
+.game-tile-status { padding: 4px 9px; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-size: 11px; font-weight: 600; }
+.game-tile-status.is-available { border-color: #537a5d; color: #bce0b9; background: #25432f; }
+.game-tile h3 { margin: 14px 0 3px; font-size: 21px; letter-spacing: -.035em; }
+.game-tile p { margin: 0; color: var(--muted); font-size: 13px; }
+.game-tile-button { display: inline-flex; min-height: 37px; margin-top: 18px; padding: 0 13px; align-items: center; gap: 9px; border: 1px solid var(--gold); border-radius: 9px; color: #172019; background: var(--gold); cursor: pointer; font-size: 12px; font-weight: 700; }
+.game-tile-button:hover { background: var(--gold-light); transform: translateY(-1px); }
+@media (max-width: 800px) { .game-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .home-view { width: calc(100% - 24px); margin: 14px auto 32px; }
+  .home-hero { min-height: 210px; padding: 26px; }
+  .home-hero-mark { width: 90px; font-size: 56px; }
+  .games-section { margin-top: 28px; }
+}
+@media (max-width: 480px) {
+  .home-hero-mark { display: none; }
+  .game-grid { grid-template-columns: 1fr; gap: 14px; }
+  .game-tile-art { height: 124px; }
+  .game-tile-body { min-height: 0; }
+}

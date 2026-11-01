@@ -229,3 +229,42 @@ button:disabled { opacity: .35; cursor: not-allowed; }
   .admin-player { grid-template-columns: 1fr; padding: 21px 18px; }
   .admin-notice { padding-right: 18px; padding-left: 18px; }
 }
+
+/* Verwaltung im gleichen Designsystem */
+:root { --admin-field: #111a16; }
+.admin-page { background: radial-gradient(circle at 50% 0, #1b3028 0, var(--page) 44rem); }
+.admin-login-card { border: 1px solid var(--line); border-radius: 20px; background: var(--panel); }
+.admin-kicker { font-family: var(--font-ui); font-size: 11px; letter-spacing: .08em; }
+.admin-login-card h1, .admin-panel-header h1 { font-family: var(--font-ui); font-size: 31px; font-weight: 700; letter-spacing: -.045em; }
+.admin-login-card > p, .admin-panel-header p { font-family: var(--font-ui); font-size: 14px; }
+#admin-login-form label, .admin-field label { color: var(--muted); font-family: var(--font-ui); font-size: 12px; letter-spacing: 0; text-transform: none; }
+#admin-login-form input, .admin-field input, .admin-field textarea, .admin-search input { border-color: var(--line); border-radius: 9px; font-family: var(--font-ui); font-size: 14px; }
+#admin-login-form input, .admin-field input { min-height: 44px; }
+#admin-login-form input:focus-visible, .admin-field input:focus-visible, .admin-field textarea:focus-visible, .admin-search input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.admin-primary, .admin-search button, .admin-action, .admin-pagination button, .admin-logout { border-color: var(--line); border-radius: 9px; color: var(--cream); background: #29382f; font-family: var(--font-ui); font-size: 12px; letter-spacing: 0; text-transform: none; }
+.admin-primary { border-color: var(--gold); color: #172019; background: var(--gold); }
+.admin-action:hover:not(:disabled), .admin-search button:hover:not(:disabled), .admin-pagination button:hover:not(:disabled), .admin-logout:hover { border-color: #647568; background: #34473a; }
+.admin-header { min-height: 76px; border-color: var(--line-soft); background: rgb(16 23 21 / 88%); backdrop-filter: blur(16px); }
+.admin-title { color: var(--muted); font-family: var(--font-ui); font-size: 12px; letter-spacing: 0; text-transform: none; }
+.admin-logout { background: transparent; }
+.admin-main { margin-top: 28px; }
+.admin-panel { border-color: var(--line); }
+.admin-panel-header { background: var(--panel-deep); }
+.admin-search { gap: 8px; }
+.admin-search input, .admin-field-row input { border-right: 1px solid var(--line); }
+.admin-search button { min-width: 88px; }
+.admin-notice, .admin-empty, .admin-pagination { font-family: var(--font-ui); font-size: 13px; }
+.admin-player { gap: 24px; }
+.admin-player:hover { background: #24342a; }
+.admin-player-identity h2 { font-family: var(--font-ui); font-size: 18px; font-weight: 700; }
+.admin-player-identity p { color: var(--muted); font-family: var(--font-ui); font-size: 11px; }
+.admin-badge { padding: 4px 8px; border-radius: 6px; font-family: var(--font-ui); font-size: 10px; letter-spacing: 0; text-transform: none; }
+.admin-field-row { gap: 7px; }
+.admin-action { min-width: 72px; }
+.admin-action--danger { border-color: #8c4d4d; color: #f0b7b6; background: #432b2b; }
+.admin-action--release { border-color: #52745b; color: #d5e9d4; background: #2a3b2e; }
+@media (max-width: 640px) {
+  .admin-main { width: calc(100% - 24px); margin: 14px auto; }
+  .admin-panel { border: 1px solid var(--line); border-radius: 14px; }
+  .admin-header { padding: 10px 16px; }
+}

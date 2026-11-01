@@ -38,7 +38,7 @@ const ui = {
   cropZoom: document.querySelector("#crop-zoom"),
   logout: document.querySelector("#logout"),
   navLinks: [...document.querySelectorAll(".nav-link")],
-  views: { game: document.querySelector("#game-view"), leaderboard: document.querySelector("#leaderboard-view"), upgrades: document.querySelector("#upgrades-view") },
+  views: { home: document.querySelector("#home-view"), game: document.querySelector("#game-view"), leaderboard: document.querySelector("#leaderboard-view"), upgrades: document.querySelector("#upgrades-view") },
   balance: document.querySelector("#balance"),
   currentBet: document.querySelector("#current-bet"),
   dealerCards: document.querySelector("#dealer-cards"),
@@ -88,7 +88,7 @@ const state = {
   round: null,
   busy: false,
   settled: false,
-  activeView: "game",
+  activeView: "home",
   leaderboardPage: 1,
   leaderboardPages: 1,
   leaderboardTimer: null,
@@ -218,6 +218,7 @@ async function establishSession(token) {
   ui.authScreen.hidden = true;
   ui.suspendedScreen.hidden = true;
   ui.app.hidden = false;
+  setView("home");
   setFormMessage(ui.loginMessage);
   if (state.sessionRetryTimer) clearTimeout(state.sessionRetryTimer);
   state.sessionRetryTimer = null;
@@ -581,9 +582,15 @@ function newRound() {
 }
 
 function setView(view) {
+  if (!ui.views[view]) return;
   state.activeView = view;
   Object.entries(ui.views).forEach(([name, element]) => { element.hidden = name !== view; });
-  ui.navLinks.forEach((link) => link.classList.toggle("is-active", link.dataset.view === view));
+  ui.navLinks.forEach((link) => {
+    const active = link.dataset.view === view;
+    link.classList.toggle("is-active", active);
+    if (active) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  });
   if (view === "leaderboard") { state.leaderboardPage = 1; loadLeaderboard(); startLeaderboardPolling(); }
   else stopLeaderboardPolling();
   if (view === "upgrades") loadUpgrades();
@@ -805,6 +812,10 @@ ui.cropCanvas.addEventListener("pointermove", (event) => {
 ["pointerup", "pointercancel"].forEach((eventName) => ui.cropCanvas.addEventListener(eventName, () => { state.avatarCrop.dragging = false; }));
 ui.suspendedLogout.addEventListener("click", clearSession);
 ui.navLinks.forEach((link) => link.addEventListener("click", () => setView(link.dataset.view)));
+document.querySelectorAll("[data-view-link], [data-open-view]").forEach((link) => link.addEventListener("click", (event) => {
+  if (link.matches("a")) event.preventDefault();
+  setView(link.dataset.viewLink || link.dataset.openView);
+}));
 ui.chips.forEach((chip) => chip.addEventListener("click", () => addBet(chip.dataset.bet)));
 ui.clearBet.addEventListener("click", () => { state.selectedBet = 0; renderGame(false); });
 ui.deal.addEventListener("click", () => gameRequest("/api/game/start", { bet: state.selectedBet }));

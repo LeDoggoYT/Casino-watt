@@ -73,12 +73,13 @@
 
   <div id="casino-app" hidden>
     <header class="site-header">
-      <a class="brand" href="#game" data-view-link="game" aria-label="Watt Casino – zum Spiel">
+      <a class="brand" href="#home" data-view-link="home" aria-label="Watt Casino – zur Startseite">
         <span class="brand-mark" aria-hidden="true"><span>W</span></span>
         <span class="brand-name">Watt <strong>Casino</strong></span>
       </a>
       <nav class="main-nav" aria-label="Hauptnavigation">
-        <button class="nav-link is-active" type="button" data-view="game">Blackjack</button>
+        <button class="nav-link is-active" type="button" data-view="home">Startseite</button>
+        <button class="nav-link" type="button" data-view="game">Blackjack</button>
         <button class="nav-link" type="button" data-view="leaderboard">Leaderboard</button>
         <button class="nav-link" type="button" data-view="upgrades">Upgrades</button>
       </nav>
@@ -93,7 +94,35 @@
       </div>
     </header>
 
-    <main id="game-view" class="app-view">
+    <main id="home-view" class="app-view home-view">
+      <section class="home-hero" aria-labelledby="home-title">
+        <div>
+          <span class="section-kicker">Watt Casino</span>
+          <h1 id="home-title">Wähle dein Spiel.</h1>
+          <p>Blackjack ist geöffnet. Entdecke die Spiele, die als Nächstes kommen.</p>
+        </div>
+        <span class="home-hero-mark" aria-hidden="true">W</span>
+      </section>
+      <section class="games-section" aria-labelledby="games-title">
+        <div class="games-heading"><div><span class="section-kicker">Spielübersicht</span><h2 id="games-title">Unsere Spiele</h2></div><span>1 von 9 verfügbar</span></div>
+        <div class="game-grid">
+          <article class="game-tile game-tile--available">
+            <div class="game-tile-art game-tile-art--blackjack" aria-hidden="true"><span>♠</span><span>21</span></div>
+            <div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Blackjack</h3><p>Komm so nah wie möglich an 21.</p><button class="game-tile-button" type="button" data-open-view="game">Spiel öffnen <span aria-hidden="true">→</span></button></div>
+          </article>
+          <article class="game-tile"><div class="game-tile-art game-tile-art--crash" aria-hidden="true">↗</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Crash</h3><p>Steige aus, bevor die Kurve fällt.</p></div></article>
+          <article class="game-tile"><div class="game-tile-art game-tile-art--poker" aria-hidden="true">♣</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Poker</h3><p>Spiele deine besten Karten.</p></div></article>
+          <article class="game-tile"><div class="game-tile-art game-tile-art--pinball" aria-hidden="true">◎</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Pinball</h3><p>Halte die Kugel im Spiel.</p></div></article>
+          <article class="game-tile"><div class="game-tile-art game-tile-art--hilo" aria-hidden="true">↑↓</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Hi-Lo</h3><p>Ist die nächste Karte höher oder tiefer?</p></div></article>
+          <article class="game-tile"><div class="game-tile-art game-tile-art--chicken" aria-hidden="true">🐔</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Chicken</h3><p>Wie weit traust du dich?</p></div></article>
+          <article class="game-tile"><div class="game-tile-art game-tile-art--slots" aria-hidden="true">✦</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Slots</h3><p>Dreh die Walzen und entdecke Neues.</p></div></article>
+          <article class="game-tile"><div class="game-tile-art game-tile-art--loot" aria-hidden="true">◇</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Loot Boxen</h3><p>Öffne eine Box und entdecke den Inhalt.</p></div></article>
+          <article class="game-tile"><div class="game-tile-art game-tile-art--mines" aria-hidden="true">✣</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Mines</h3><p>Decke Felder auf und meide die Minen.</p></div></article>
+        </div>
+      </section>
+    </main>
+
+    <main id="game-view" class="app-view" hidden>
       <div id="game" class="game-shell">
         <section class="table-panel" aria-labelledby="game-title">
           <h1 id="game-title" class="visually-hidden">Blackjack im Watt Casino</h1>
