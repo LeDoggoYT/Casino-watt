@@ -34,6 +34,8 @@ CLEANUP_INTERVAL_SECONDS = 15 * 60
 MAX_UPGRADE_LEVEL = 5
 CHICKEN_MULTIPLIERS = (0.8, 1.0, 2.4, 3.0, 3.8, 4.8, 6.0, 7.5, 9.5)
 CHICKEN_SUCCESS_CHANCES = (90, 85, 80, 75, 70, 65, 60, 55, 50)
+LOOT_BOXES = {"bronze": {"name": "Bronze", "price": 50}, "emerald": {"name": "Smaragd", "price": 250}, "royal": {"name": "Royal", "price": 1000}}
+LOOT_REWARDS = (("Klein", 0.25, 40), ("Normal", 0.5, 25), ("Selten", 1, 20), ("Episch", 2, 10), ("Legendär", 5, 4), ("Jackpot", 10, 1))
 UPGRADES = {
     "starting_capital": {"name": "Startkapital", "base_cost": 750, "effect": "+250 Chips Neustartkapital je Level"},
     "luck": {"name": "Glück", "base_cost": 1500, "effect": "+2 % Rettungschance je Level"},
@@ -148,6 +150,10 @@ CREATE TABLE IF NOT EXISTS active_chicken_rounds (
  id TEXT PRIMARY KEY, user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
  bet REAL NOT NULL CHECK (bet >= 5), steps INTEGER NOT NULL DEFAULT 0 CHECK (steps BETWEEN 0 AND 10),
  created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS loot_openings (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ box_key TEXT NOT NULL, price REAL NOT NULL, payout REAL NOT NULL, reward_index INTEGER NOT NULL, created_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS loot_user_history ON loot_openings(user_id,id);
 CREATE TABLE IF NOT EXISTS crash_rounds (
  id INTEGER PRIMARY KEY AUTOINCREMENT, starts_at REAL NOT NULL, ends_at REAL NOT NULL,
  crash_at REAL NOT NULL, settled INTEGER NOT NULL DEFAULT 0);
@@ -479,7 +485,7 @@ def public_upgrades(user_id: int, balance: float) -> dict:
 
 
 def register_action(user_id, action_id, action_type):
-    if action_type in {"start", "chicken-start", "pinball-play"}:
+    if action_type in {"start", "chicken-start", "pinball-play", "loot-open"}:
         if get_db().execute("SELECT 1 FROM crash_bets WHERE user_id=? AND payout IS NULL", (user_id,)).fetchone():
             raise ApiError(409, "Beende zuerst deine Crash-Runde.")
     if not isinstance(action_id, str) or not ACTION_RE.fullmatch(action_id):
@@ -912,6 +918,50 @@ def make_app():
                 settle_crash_bet(db, bet, multiplier)
             data = crash_snapshot(db, round_, now, user_id)
         return ok(data)
+
+    def loot_history(user_id):
+        return [dict(row) for row in get_db().execute("SELECT id,box_key,price,payout,reward_index,created_at FROM loot_openings WHERE user_id=? ORDER BY id DESC LIMIT 10", (user_id,))]
+
+    @app.get("/api/loot/current")
+    @auth_required
+    def loot_current():
+        return ok({"boxes": [{"key": key, **box} for key, box in LOOT_BOXES.items()],
+                   "rewards": [{"name": name, "multiplier": multiplier, "chance": chance} for name, multiplier, chance in LOOT_REWARDS],
+                   "history": loot_history(g.auth["user_id"]),
+                   "balance": get_db().execute("SELECT amount FROM balances WHERE user_id=?", (g.auth["user_id"],)).fetchone()["amount"]})
+
+    @app.post("/api/loot/open")
+    @auth_required
+    def loot_open():
+        payload = body()
+        key = payload.get("box")
+        if not isinstance(key, str) or key not in LOOT_BOXES: raise ApiError(400, "Wähle eine gültige Box.")
+        with transaction() as db:
+            user_id = g.auth["user_id"]
+            register_action(user_id, payload.get("actionId"), "loot-open")
+            if load_round(user_id) or db.execute("SELECT 1 FROM active_chicken_rounds WHERE user_id=?", (user_id,)).fetchone():
+                raise ApiError(409, "Beende zuerst deine laufende Spielrunde.")
+            price = LOOT_BOXES[key]["price"]
+            balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
+            if balance < price: raise ApiError(400, "Nicht genügend Chips für diese Box.")
+            roll = secrets.randbelow(100)
+            for index, (_, multiplier, chance) in enumerate(LOOT_REWARDS):
+                if roll < chance: break
+                roll -= chance
+            payout = price * multiplier
+            net = payout - price
+            after = balance + net
+            db.execute("UPDATE balances SET amount=?,updated_at=? WHERE user_id=?", (after, utc_now(), user_id))
+            db.execute("INSERT INTO loot_openings(user_id,box_key,price,payout,reward_index,created_at) VALUES (?,?,?,?,?,?)", (user_id,key,price,payout,index,utc_now()))
+            stats = db.execute("SELECT current_streak FROM player_stats WHERE user_id=?", (user_id,)).fetchone()
+            streak = max(0,stats["current_streak"])+1 if net>0 else min(0,stats["current_streak"])-1 if net<0 else stats["current_streak"]
+            db.execute("""UPDATE player_stats SET rounds_played=rounds_played+1,wins=wins+?,losses=losses+?,pushes=pushes+?,
+                          highest_balance=MAX(highest_balance,?),biggest_win=MAX(biggest_win,?),total_won=total_won+?,
+                          total_lost=total_lost+?,current_streak=?,best_win_streak=MAX(best_win_streak,?) WHERE user_id=?""",
+                       (int(net>0),int(net<0),int(net==0),after,max(0,net),max(0,net),max(0,-net),streak,max(0,streak),user_id))
+            record_big_win(db,user_id,"Loot Boxen",net,price)
+            history = loot_history(user_id)
+        return ok({"balance":after,"payout":payout,"netResult":net,"rewardIndex":index,"history":history})
 
     @app.post("/api/pinball/play")
     @auth_required

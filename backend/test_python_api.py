@@ -16,6 +16,35 @@ from app import app, get_db, outcome as determine_outcome, hand_value, blackjack
 
 
 class WattCasinoApiTests(unittest.TestCase):
+    def test_loot_rewards_history_and_duplicate_open(self):
+        token = self.request("POST", "/api/auth/register", {"username": "LootPlayer", "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
+        catalog = self.request("GET", "/api/loot/current", token=token).get_json()["data"]
+        self.assertEqual(sum(reward["chance"] for reward in catalog["rewards"]), 100)
+        self.assertEqual([box["price"] for box in catalog["boxes"]], [50, 250, 1000])
+        balance = 1000
+        for index, (roll, payout) in enumerate(((39, 12.5), (40, 25), (65, 50), (85, 100), (95, 250), (99, 500))):
+            payload = {"box": "bronze", "price": 0, "payout": 999999, "actionId": f"loot-open-test-{index:04d}"}
+            with patch("app.secrets.randbelow", return_value=roll):
+                response = self.request("POST", "/api/loot/open", payload, token)
+            self.assertEqual(response.status_code, 200)
+            data = response.get_json()["data"]
+            balance += payout - 50
+            self.assertEqual(data["rewardIndex"], index)
+            self.assertEqual(data["payout"], payout)
+            self.assertEqual(data["balance"], balance)
+            duplicate = self.request("POST", "/api/loot/open", payload, token)
+            self.assertEqual(duplicate.status_code, 409)
+        resumed = self.request("GET", "/api/loot/current", token=token).get_json()["data"]
+        self.assertEqual(len(resumed["history"]), 6)
+        self.assertEqual(resumed["balance"], balance)
+        invalid = self.request("POST", "/api/loot/open", {"box": "unknown", "actionId": "loot-invalid-box-0001"}, token)
+        self.assertEqual(invalid.status_code, 400)
+        with app.app_context():
+            get_db().execute("UPDATE balances SET amount=10 WHERE user_id=(SELECT id FROM users WHERE username='LootPlayer')")
+        poor = self.request("POST", "/api/loot/open", {"box": "royal", "actionId": "loot-poor-player-0001"}, token)
+        self.assertEqual(poor.status_code, 400)
+        self.assertEqual(self.request("GET", "/api/loot/current", token=token).get_json()["data"]["balance"], 10)
+
     def test_shared_crash_round_cashout_loss_and_reload(self):
         tokens = [self.request("POST", "/api/auth/register", {"username": name, "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
                   for name in ("CrashPlayerOne", "CrashPlayerTwo")]
