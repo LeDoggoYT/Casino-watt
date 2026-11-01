@@ -148,6 +148,15 @@ CREATE TABLE IF NOT EXISTS active_chicken_rounds (
  id TEXT PRIMARY KEY, user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
  bet REAL NOT NULL CHECK (bet >= 5), steps INTEGER NOT NULL DEFAULT 0 CHECK (steps BETWEEN 0 AND 10),
  created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS crash_rounds (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, starts_at REAL NOT NULL, ends_at REAL NOT NULL,
+ crash_at REAL NOT NULL, settled INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS crash_bets (
+ round_id INTEGER NOT NULL REFERENCES crash_rounds(id),
+ user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ bet REAL NOT NULL CHECK (bet >= 5), payout REAL, cashout_at REAL,
+ PRIMARY KEY (round_id,user_id));
+CREATE INDEX IF NOT EXISTS crash_bets_pending ON crash_bets(user_id,payout);
 CREATE TABLE IF NOT EXISTS big_wins (
  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  game TEXT NOT NULL, amount REAL NOT NULL, created_at TEXT NOT NULL);
@@ -276,8 +285,9 @@ def restore_empty_balance(user_id):
                   (SELECT level FROM user_upgrades WHERE user_id=? AND upgrade_key='starting_capital'),0),
                   updated_at=? WHERE user_id=? AND amount=0
                   AND NOT EXISTS (SELECT 1 FROM active_rounds WHERE user_id=?)
-                  AND NOT EXISTS (SELECT 1 FROM active_chicken_rounds WHERE user_id=?)""",
-               (user_id, utc_now(), user_id, user_id, user_id))
+                  AND NOT EXISTS (SELECT 1 FROM active_chicken_rounds WHERE user_id=?)
+                  AND NOT EXISTS (SELECT 1 FROM crash_bets WHERE user_id=? AND payout IS NULL)""",
+               (user_id, utc_now(), user_id, user_id, user_id, user_id))
     return db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
 
 
@@ -469,6 +479,9 @@ def public_upgrades(user_id: int, balance: float) -> dict:
 
 
 def register_action(user_id, action_id, action_type):
+    if action_type in {"start", "chicken-start", "pinball-play"}:
+        if get_db().execute("SELECT 1 FROM crash_bets WHERE user_id=? AND payout IS NULL", (user_id,)).fetchone():
+            raise ApiError(409, "Beende zuerst deine Crash-Runde.")
     if not isinstance(action_id, str) or not ACTION_RE.fullmatch(action_id):
         raise ApiError(400, "Für diese Aktion fehlt eine gültige Aktions-ID.")
     try:
@@ -481,6 +494,59 @@ def record_big_win(db, user_id, game, amount, bet):
     if amount > 10000 or amount + bet > 5 * bet:
         db.execute("INSERT INTO big_wins (user_id,game,amount,created_at) VALUES (?,?,?,?)", (user_id, game, amount, utc_now()))
         db.execute("DELETE FROM big_wins WHERE id < (SELECT MAX(id) - 1000 FROM big_wins)")
+
+
+def settle_crash_bet(db, bet, multiplier):
+    payout = math.floor(bet["bet"] * multiplier * 2) / 2
+    changed = db.execute("UPDATE crash_bets SET payout=?,cashout_at=? WHERE round_id=? AND user_id=? AND payout IS NULL",
+                         (payout, multiplier if multiplier else None, bet["round_id"], bet["user_id"]))
+    if not changed.rowcount: return
+    net = payout - bet["bet"]
+    db.execute("UPDATE balances SET amount=amount+?,updated_at=? WHERE user_id=?", (payout, utc_now(), bet["user_id"]))
+    balance = restore_empty_balance(bet["user_id"])
+    stats = db.execute("SELECT current_streak FROM player_stats WHERE user_id=?", (bet["user_id"],)).fetchone()
+    streak = max(0, stats["current_streak"]) + 1 if net > 0 else min(0, stats["current_streak"]) - 1 if net < 0 else stats["current_streak"]
+    db.execute("""UPDATE player_stats SET rounds_played=rounds_played+1,wins=wins+?,losses=losses+?,pushes=pushes+?,
+                  highest_balance=MAX(highest_balance,?),biggest_win=MAX(biggest_win,?),total_won=total_won+?,
+                  total_lost=total_lost+?,current_streak=?,best_win_streak=MAX(best_win_streak,?) WHERE user_id=?""",
+               (int(net>0), int(net<0), int(net==0), balance, max(0,net), max(0,net), max(0,-net), streak, max(0,streak), bet["user_id"]))
+    record_big_win(db, bet["user_id"], "Crash", net, bet["bet"])
+
+
+def advance_crash(db, now):
+    # Persistent shared clock: every worker reads the same round inside BEGIN IMMEDIATE.
+    round_ = db.execute("SELECT * FROM crash_rounds ORDER BY id DESC LIMIT 1").fetchone()
+    if round_ and now >= round_["ends_at"] and not round_["settled"]:
+        for bet in db.execute("SELECT * FROM crash_bets WHERE round_id=? AND payout IS NULL", (round_["id"],)).fetchall():
+            settle_crash_bet(db, bet, 0)
+        db.execute("UPDATE crash_rounds SET settled=1 WHERE id=?", (round_["id"],))
+    if not round_ or now >= round_["ends_at"] + 5:
+        # The crash point stays private until the round has ended.
+        point = max(1, min(100, math.floor(0.99 / ((secrets.randbelow(1_000_000) + 1) / 1_000_000) * 100) / 100))
+        starts = now + 8
+        db.execute("INSERT INTO crash_rounds(starts_at,ends_at,crash_at) VALUES (?,?,?)", (starts, starts + math.log(point) / 0.09, point))
+        round_ = db.execute("SELECT * FROM crash_rounds ORDER BY id DESC LIMIT 1").fetchone()
+    return round_
+
+
+def crash_snapshot(db, round_, now, user_id):
+    phase = "waiting" if now < round_["starts_at"] else "running" if now < round_["ends_at"] else "crashed"
+    multiplier = 1 if phase == "waiting" else round_["crash_at"] if phase == "crashed" else math.floor(math.exp((now-round_["starts_at"]) * 0.09)*100)/100
+    players = [dict(row) for row in db.execute("""SELECT u.username,b.user_id,b.bet,b.payout,b.cashout_at FROM crash_bets b
+                    JOIN users u ON u.id=b.user_id WHERE round_id=? ORDER BY b.bet DESC,u.username""", (round_["id"],))]
+    mine = next((row for row in players if row["user_id"] == user_id), None)
+    for player in players:
+        player["mine"] = player.pop("user_id") == user_id
+        player["net"] = None if player["payout"] is None else player["payout"] - player["bet"]
+    history = [dict(row) for row in db.execute("SELECT id,crash_at FROM crash_rounds WHERE ends_at<=? ORDER BY id DESC LIMIT 15", (now,))]
+    previous = [dict(row) for row in db.execute("""SELECT u.username,b.bet,b.payout,b.cashout_at,b.payout-b.bet AS net
+                  FROM crash_bets b JOIN users u ON u.id=b.user_id
+                  WHERE b.round_id=(SELECT MAX(id) FROM crash_rounds WHERE id<? AND settled=1)
+                  ORDER BY b.bet DESC,u.username""", (round_["id"],))]
+    return {"round": {"id": round_["id"], "phase": phase, "startsAt": round_["starts_at"], "multiplier": multiplier,
+                      "nextIn": max(0, (round_["starts_at"] if phase == "waiting" else round_["ends_at"]+5 if phase == "crashed" else now)-now)},
+            "serverTime": now, "players": players, "previous": previous, "mine": mine, "history": history,
+            "balance": db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]}
 
 
 def settle(round_, result, levels=None):
@@ -576,7 +642,9 @@ def make_app():
         global LAST_CLEANUP_AT
         if request.method == "OPTIONS":
             return ("", 204)
-        if request.path.startswith("/api/"):
+        if request.path == "/api/crash/current":
+            enforce_rate_limit("crash-read", 1200, 60)
+        elif request.path.startswith("/api/"):
             enforce_rate_limit("api", 180, 60)
         if request.path in {"/api/auth/register", "/api/auth/login"}:
             enforce_rate_limit("auth", 20, 15 * 60)
@@ -801,6 +869,49 @@ def make_app():
                              JOIN users u ON u.id=w.user_id WHERE w.id>? AND w.created_at>=?
                              ORDER BY w.id DESC LIMIT 3""", (int(raw), cutoff)).fetchall()
         return ok({"wins": [dict(row) for row in reversed(rows)], "cursor": latest})
+
+    @app.get("/api/crash/current")
+    @auth_required
+    def crash_current():
+        enforce_rate_limit(f"crash-user-{g.auth['user_id']}", 90, 60)
+        with transaction() as db:
+            now = time.time()
+            round_ = advance_crash(db, now)
+            data = crash_snapshot(db, round_, now, g.auth["user_id"])
+        return ok(data)
+
+    @app.post("/api/crash/<action>")
+    @auth_required
+    def crash_action(action):
+        if action not in {"bet", "cashout"}: raise ApiError(404, "Unbekannte Aktion.")
+        payload = body()
+        with transaction() as db:
+            now = time.time()
+            round_ = advance_crash(db, now)
+            user_id = g.auth["user_id"]
+            if payload.get("roundId") != round_["id"]: raise ApiError(409, "Die Runde hat bereits gewechselt.")
+            register_action(user_id, payload.get("actionId"), "crash-" + action)
+            if action == "bet":
+                if now >= round_["starts_at"]: raise ApiError(409, "Warte auf die nächste Runde.")
+                try: bet = float(payload.get("bet"))
+                except (TypeError, ValueError): bet = 0
+                if not math.isfinite(bet) or bet < 5 or bet*2 != round(bet*2): raise ApiError(400, "Mindestens 5 Chips in 0,5er-Schritten einsetzen.")
+                if load_round(user_id) or db.execute("SELECT 1 FROM active_chicken_rounds WHERE user_id=?", (user_id,)).fetchone():
+                    raise ApiError(409, "Beende zuerst deine andere Spielrunde.")
+                if db.execute("SELECT 1 FROM crash_bets WHERE round_id=? AND user_id=?", (round_["id"],user_id)).fetchone():
+                    raise ApiError(409, "Du hast für diese Runde bereits gesetzt.")
+                balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
+                if bet > balance: raise ApiError(400, "Nicht genügend Chips.")
+                db.execute("INSERT INTO crash_bets(round_id,user_id,bet) VALUES (?,?,?)", (round_["id"],user_id,bet))
+                db.execute("UPDATE balances SET amount=amount-?,updated_at=? WHERE user_id=?", (bet,utc_now(),user_id))
+            else:
+                bet = db.execute("SELECT * FROM crash_bets WHERE round_id=? AND user_id=?", (round_["id"],user_id)).fetchone()
+                if not bet or bet["payout"] is not None: raise ApiError(409, "Kein offener Einsatz in dieser Runde.")
+                if now < round_["starts_at"] or now >= round_["ends_at"]: raise ApiError(409, "Ausstieg nur während der laufenden Runde möglich.")
+                multiplier = math.floor(math.exp((now-round_["starts_at"])*0.09)*100)/100
+                settle_crash_bet(db, bet, multiplier)
+            data = crash_snapshot(db, round_, now, user_id)
+        return ok(data)
 
     @app.post("/api/pinball/play")
     @auth_required

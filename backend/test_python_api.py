@@ -16,6 +16,55 @@ from app import app, get_db, outcome as determine_outcome, hand_value, blackjack
 
 
 class WattCasinoApiTests(unittest.TestCase):
+    def test_shared_crash_round_cashout_loss_and_reload(self):
+        tokens = [self.request("POST", "/api/auth/register", {"username": name, "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
+                  for name in ("CrashPlayerOne", "CrashPlayerTwo")]
+        with app.app_context():
+            db = get_db()
+            db.execute("DELETE FROM crash_bets")
+            db.execute("DELETE FROM crash_rounds")
+        with patch("app.time.time", return_value=1000), patch("app.secrets.randbelow", return_value=499999):
+            first = self.request("GET", "/api/crash/current", token=tokens[0]).get_json()["data"]
+            second = self.request("GET", "/api/crash/current", token=tokens[1]).get_json()["data"]
+        self.assertEqual(first["round"], second["round"])
+        self.assertEqual(first["round"]["phase"], "waiting")
+        self.assertNotIn("crash_at", first["round"])
+        self.assertNotIn("ends_at", first["round"])
+        round_id = first["round"]["id"]
+        with patch("app.time.time", return_value=1001):
+            for index, token in enumerate(tokens):
+                response = self.request("POST", "/api/crash/bet", {"roundId": round_id, "bet": 100 if index == 0 else 1000, "actionId": f"crash-bet-action-{index:04d}"}, token)
+                self.assertEqual(response.status_code, 200)
+            resumed = self.request("GET", "/api/crash/current", token=tokens[1]).get_json()["data"]
+            self.assertEqual(resumed["balance"], 0)
+            self.assertEqual(resumed["mine"]["bet"], 1000)
+            self.assertEqual(len(resumed["players"]), 2)
+            blocked = self.request("POST", "/api/pinball/play", {"bet": 5, "actionId": "crash-other-game-block"}, tokens[0])
+            self.assertEqual(blocked.status_code, 409)
+        with patch("app.time.time", return_value=1011):
+            response = self.request("POST", "/api/crash/cashout", {"roundId": round_id, "actionId": "crash-cashout-action-1"}, tokens[0])
+            self.assertEqual(response.status_code, 200)
+            data = response.get_json()["data"]
+            self.assertEqual(data["mine"]["payout"], 130)
+            self.assertEqual(data["balance"], 1030)
+            duplicate = self.request("POST", "/api/crash/cashout", {"roundId": round_id, "actionId": "crash-cashout-action-2"}, tokens[0])
+            self.assertEqual(duplicate.status_code, 409)
+        with patch("app.time.time", return_value=1016):
+            result = self.request("GET", "/api/crash/current", token=tokens[1]).get_json()["data"]
+            self.assertEqual(result["round"]["phase"], "crashed")
+            self.assertEqual(result["round"]["multiplier"], 1.98)
+            self.assertEqual(result["mine"]["net"], -1000)
+            self.assertEqual(result["balance"], 1000)
+            again = self.request("GET", "/api/crash/current", token=tokens[1]).get_json()["data"]
+            self.assertEqual(again["balance"], 1000)
+            self.assertEqual(result["history"][0]["id"], round_id)
+        with patch("app.time.time", return_value=1022):
+            next_round = self.request("GET", "/api/crash/current", token=tokens[0]).get_json()["data"]
+            self.assertNotEqual(next_round["round"]["id"], round_id)
+            self.assertEqual(len(next_round["previous"]), 2)
+            stale = self.request("POST", "/api/crash/bet", {"roundId": round_id, "bet": 5, "actionId": "crash-stale-round-bet"}, tokens[0])
+            self.assertEqual(stale.status_code, 409)
+
     def setUp(self):
         self.client = app.test_client()
 
