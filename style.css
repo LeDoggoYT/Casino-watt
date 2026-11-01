@@ -1235,3 +1235,105 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); ou
   .game-tile-art { height: 124px; }
   .game-tile-body { min-height: 0; }
 }
+
+/* Chicken */
+.chicken-view { width: min(1000px, calc(100% - 48px)); margin: 28px auto 48px; }
+.chicken-panel { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow); }
+.chicken-content { display: grid; gap: 30px; padding: clamp(24px, 4vw, 42px); }
+.chicken-road-scroll { overflow-x: auto; border: 1px solid #515471; border-radius: 18px; scrollbar-color: #8182a0 #30324b; }
+.chicken-road { position: relative; --lane-count: 10; --column-count: 12; min-width: 1680px; height: 450px; overflow: hidden; isolation: isolate; background: #3e4169; }
+.chicken-curb { position: absolute; inset: 0 auto 0 0; width: calc(100% / var(--column-count)); border-right: 9px solid #7e9196; background: radial-gradient(ellipse at 0 20%, #579871 0 23%, transparent 24%), radial-gradient(ellipse at 0 80%, #447d60 0 25%, transparent 26%), repeating-linear-gradient(0deg, transparent 0 65px, #5c777d 66px 69px), #9aafb0; box-shadow: 6px 0 0 #22253f50; }
+.chicken-curb--finish { left: auto; right: 0; border-right: 0; border-left: 9px solid #7e9196; background: repeating-conic-gradient(#c6d2b9 0% 25%, #607962 0% 50%) 0 0 / 28px 28px; }
+.chicken-curb span { position: absolute; top: 25px; width: 100%; color: #d5e5c4; font-size: 10px; font-weight: 750; letter-spacing: .12em; text-align: center; text-transform: uppercase; }
+.chicken-lanes { position: absolute; inset: 0 calc(100% / var(--column-count)); display: grid; grid-template-columns: repeat(var(--lane-count), 1fr); }
+.chicken-lane { position: relative; overflow: hidden; --car-color: #d09b4b; --duration: 3.8s; --delay: -1s; background: linear-gradient(90deg, #0001, transparent 35%, #ffffff03); }
+.chicken-lane + .chicken-lane { border-left: 2px dashed #c5c7dfb0; }
+.chicken-lane:nth-child(5n + 2) { --car-color: #9172de; --duration: 4.8s; --delay: -3s; }
+.chicken-lane:nth-child(5n + 3) { --car-color: #de6c62; --duration: 3.4s; --delay: -2s; }
+.chicken-lane:nth-child(5n + 4) { --car-color: #338f7c; --duration: 4.2s; --delay: -.3s; }
+.chicken-lane:nth-child(5n) { --car-color: #eabc59; --duration: 3.6s; --delay: -2.8s; }
+.traffic-car { position: absolute; top: -100px; left: 50%; display: block; width: 38px; height: 76px; margin-left: -19px; border: 2px solid #ffffff36; border-radius: 11px 11px 9px 9px; background: var(--car-color, #c76f5e); box-shadow: -5px 11px 0 #0003, -4px 14px 0 -1px #131d1c, 4px 14px 0 -1px #131d1c, -4px -14px 0 -1px #131d1c, 4px -14px 0 -1px #131d1c; animation: chicken-traffic var(--duration, 4s) linear infinite; animation-delay: var(--delay, 0s); }
+.traffic-car b { position: absolute; inset: 17px 4px 14px; border-top: 11px solid #6ac3dc; border-bottom: 8px solid #397fa0; border-radius: 6px; background: #fff2; }
+.traffic-car::before, .traffic-car::after { content: ""; position: absolute; left: 3px; width: 8px; height: 4px; background: #ffe5a4; bottom: 3px; box-shadow: 19px 0 #ffe5a4; border-radius: 2px; }
+.traffic-car::after { top: 3px; bottom: auto; background: #912e30; box-shadow: 19px 0 #912e30; }
+.traffic-car--second { animation-delay: calc(var(--delay) - var(--duration) / 2); }
+.chicken-lane .traffic-car { z-index: 3; scale: 1.55; }
+.chicken-lane:nth-child(even) .traffic-car { animation-direction: reverse; transform: rotate(180deg); }
+.chicken-lane.is-safe { background-color: #3b6c4b40; }
+.chicken-lane.is-safe .traffic-car, .chicken-lane.is-crossing .traffic-car { visibility: hidden; }
+.chicken-path { position: absolute; z-index: 2; top: 60%; transform: translateY(-50%); left: calc(100% / var(--column-count)); right: calc(100% / var(--column-count)); display: grid; grid-template-columns: repeat(var(--lane-count), 1fr); margin: 0; padding: 0; list-style: none; pointer-events: none; }
+.chicken-path li { display: grid; align-content: center; gap: 4px; justify-self: center; width: 74px; height: 74px; border: 3px double #a6a9d33b; border-radius: 50%; color: #c3c6e0; background: #777bac1c; text-align: center; text-shadow: 0 1px 3px #252842; }
+.chicken-path li.is-complete { border-color: #a9cda7; color: #e2f3c9; background: #42714d80; }
+.chicken-path li span { font-size: 9px; letter-spacing: .05em; text-transform: uppercase; }
+.chicken-path li strong { font-size: 15px; }
+.chicken-actor { position: absolute; z-index: 4; top: 60%; left: calc(50% / var(--column-count)); width: 72px; height: 80px; transform: translate(-50%, -50%); transition: left .2s cubic-bezier(.25,.7,.3,1); }
+.chicken-bird { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 4px 2px #0004); transition: transform .2s ease, opacity .2s ease; }
+.chicken-actor.is-walking .chicken-bird { animation: chicken-hop .15s ease-in-out infinite alternate; }
+.chicken-actor.is-crashed .chicken-bird { transform: rotate(85deg) scale(.8); opacity: .5; }
+.chicken-actor.is-winner .chicken-bird { filter: drop-shadow(0 0 10px #d9c77a); }
+.chicken-impact { display: none; position: absolute; inset: -16px; place-items: center; color: #f7cd78; font-size: 74px; text-shadow: 0 0 20px #ed965a; }
+.chicken-actor.is-crashed .chicken-impact { display: grid; }
+.chicken-impact-car { z-index: 5; scale: 1.55; animation: none; opacity: 0; transition: top .18s linear; }
+.chicken-impact-car.is-hitting { top: calc(60% - 38px); opacity: 1; }
+.chicken-road-caption { position: absolute; z-index: 2; left: 160px; bottom: 15px; padding: 6px 14px; border-radius: 20px; color: #d9dcf0; background: #24283fba; font-size: 11px; white-space: nowrap; }
+@keyframes chicken-traffic { to { top: calc(100% + 100px); } }
+@keyframes chicken-hop { to { transform: translateY(-7px) rotate(-5deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .chicken-lane .traffic-car { animation: none; top: 75%; }
+  .chicken-lane .traffic-car--second { top: 23%; }
+}
+.chicken-controls { display: grid; max-width: 460px; gap: 12px; }
+.chicken-wallet, .chicken-amount { display: grid; gap: 7px; padding: 16px 20px; border: 1px solid #667354; border-radius: 12px; background: #111b16; }
+.chicken-wallet { min-width: 190px; border-color: var(--gold); }
+.chicken-wallet > span, .chicken-amount > span { color: #d4dfd5; font-size: 12px; font-weight: 600; }
+.chicken-wallet strong, .chicken-amount strong { color: var(--cream); font-size: clamp(24px, 3vw, 32px); line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.chicken-wallet small, .chicken-amount small { font-size: 12px; font-weight: 500; color: #d4dfd5; }
+.chicken-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 8px; }
+.chicken-amount--payout { border-color: var(--gold); background: #29291c; }
+.chicken-amount--payout strong, .chicken-wallet strong { color: var(--gold-light); }
+.chicken-controls .control-heading { margin: 0; }
+.chicken-controls .chip-row { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px 9px; margin: 4px 0 12px; }
+@media (max-width: 480px) { .chicken-controls .chip-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.chicken-controls label { color: var(--muted); font-size: 12px; font-weight: 700; }
+.chicken-controls input { width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; color: var(--cream); background: #111a16; }
+.chicken-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.chicken-actions button { min-height: 44px; padding: 0 18px; border: 1px solid var(--line); border-radius: 10px; color: var(--cream); background: #304135; cursor: pointer; font-size: 13px; font-weight: 700; }
+.chicken-actions button:hover:not(:disabled) { background: #3c5543; }
+.chicken-actions button:disabled { opacity: .55; cursor: wait; }
+.chicken-actions .chicken-primary, #chicken-cashout { border-color: var(--gold); color: #172019; background: var(--gold); }
+.chicken-actions .chicken-primary:hover:not(:disabled), #chicken-cashout:hover:not(:disabled) { background: var(--gold-light); }
+.chicken-message, .chicken-payout { margin: 0; color: var(--muted); font-size: 13px; }
+.chicken-payout { color: var(--gold-light); font-weight: 700; }
+@media (max-width: 640px) {
+  .chicken-view { width: calc(100% - 24px); margin: 14px auto 32px; }
+  .chicken-panel .section-header { flex-wrap: wrap; }
+  .chicken-road { min-width: 1320px; height: 360px; }
+  .chicken-content { padding: 16px; }
+  .main-nav { overflow-x: auto; }
+  .main-nav .nav-link { flex: 0 0 auto; }
+}
+.casino-intro { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; overflow: hidden; pointer-events: none; background: #0b1210; animation: casino-intro-exit .65s cubic-bezier(.4,0,.2,1) 1.65s forwards; }
+.casino-intro__halo { position: absolute; width: min(850px, 140vw); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(ellipse, #d5b87512, #18372b18 40%, transparent 68%); animation: casino-intro-halo 2.3s ease-out both; }
+.casino-intro__identity { position: relative; display: grid; justify-items: center; gap: 22px; padding: 24px; }
+.casino-intro__crest { display: grid; place-items: center; width: 88px; height: 100px; border: 1px solid #d5b87599; border-radius: 24px 24px 32px 32px; background: linear-gradient(145deg, #d5b87515, #d5b87502); box-shadow: inset 0 0 0 6px #0b1210, inset 0 0 0 7px #d5b87520, 0 16px 60px #0005; animation: casino-intro-rise .9s cubic-bezier(.16,1,.3,1) both; }
+.casino-intro__crest span { font: 48px/1 Georgia, serif; color: #ead59b; text-shadow: 0 2px 20px #d5b87533; }
+.casino-intro__name { color: #f4f3ec; font: 500 clamp(26px, 6vw, 36px)/1.2 Georgia, serif; letter-spacing: .06em; animation: casino-intro-rise .85s .15s both; }
+.casino-intro__name strong { color: #ead59b; font-weight: 500; }
+.casino-intro__rule { width: 140px; height: 1px; background: linear-gradient(90deg, transparent, #d5b875, transparent); transform-origin: center; animation: casino-intro-line 1s .25s both; }
+.casino-intro__caption { color: #b8b7a5; font: 500 10px/1.5 Inter, sans-serif; letter-spacing: .28em; text-transform: uppercase; animation: casino-intro-rise .8s .35s both; }
+@keyframes casino-intro-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes casino-intro-line { from { opacity: 0; transform: scaleX(0); } to { opacity: 1; transform: scaleX(1); } }
+@keyframes casino-intro-halo { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: scale(1); } }
+@keyframes casino-intro-exit { to { opacity: 0; visibility: hidden; } }
+body:has(:focus-visible) .casino-intro { display: none; }
+@media (prefers-reduced-motion: reduce) { .casino-intro { display: none; } .casino-intro * { animation: none; } }
+.win-notifications { position: fixed; z-index: 9000; top: 94px; right: 22px; width: min(330px, calc(100vw - 32px)); display: grid; gap: 10px; pointer-events: none; }
+.win-notification { position: relative; display: grid; gap: 8px; padding: 19px 40px 19px 20px; border: 1px solid #d5b87570; border-left: 3px solid #d5b875; border-radius: 14px; background: #15221ff5; color: #f4f3ec; box-shadow: 0 12px 40px #0005; pointer-events: auto; animation: win-notification-in .35s ease-out both; }
+.win-notification__title { color: #c8cfbf; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+.win-notification strong { font-size: 17px; overflow-wrap: anywhere; }
+.win-notification__amount { color: #ead59b; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.win-notification button { position: absolute; right: 8px; top: 8px; width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: #c8cfbf; font-size: 22px; cursor: pointer; }
+.win-notification button:hover { background: #ffffff15; }
+@keyframes win-notification-in { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+@media (max-width: 640px) { .win-notifications { top: 84px; right: 16px; } }
+@media (prefers-reduced-motion: reduce) { .win-notification { animation: none; } }

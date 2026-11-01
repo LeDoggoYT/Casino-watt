@@ -38,7 +38,22 @@ const ui = {
   cropZoom: document.querySelector("#crop-zoom"),
   logout: document.querySelector("#logout"),
   navLinks: [...document.querySelectorAll(".nav-link")],
-  views: { home: document.querySelector("#home-view"), game: document.querySelector("#game-view"), leaderboard: document.querySelector("#leaderboard-view"), upgrades: document.querySelector("#upgrades-view") },
+  views: { home: document.querySelector("#home-view"), game: document.querySelector("#game-view"), chicken: document.querySelector("#chicken-view"), leaderboard: document.querySelector("#leaderboard-view"), upgrades: document.querySelector("#upgrades-view") },
+  chickenBalance: document.querySelector("#chicken-balance"),
+  chickenBet: document.querySelector("#chicken-bet"),
+  chickenChips: document.querySelector("#chicken-chips"),
+  chickenClearBet: document.querySelector("#chicken-clear-bet"),
+  chickenStart: document.querySelector("#chicken-start"),
+  chickenStep: document.querySelector("#chicken-step"),
+  chickenCashout: document.querySelector("#chicken-cashout"),
+  chickenMessage: document.querySelector("#chicken-message"),
+  chickenPayout: document.querySelector("#chicken-payout"),
+  chickenPath: [...document.querySelectorAll(".chicken-path li")],
+  chickenActor: document.querySelector("#chicken-actor"),
+  chickenRoad: document.querySelector("#chicken-road"),
+  chickenRoadScroll: document.querySelector("#chicken-road-scroll"),
+  chickenLanes: [...document.querySelectorAll(".chicken-lane")],
+  chickenImpactCar: document.querySelector("#chicken-impact-car"),
   balance: document.querySelector("#balance"),
   currentBet: document.querySelector("#current-bet"),
   dealerCards: document.querySelector("#dealer-cards"),
@@ -86,6 +101,10 @@ const state = {
   balance: 0,
   selectedBet: 0,
   round: null,
+  chickenRound: null,
+  chickenResult: null,
+  chickenBet: 0,
+  customBetGame: "game",
   busy: false,
   settled: false,
   activeView: "home",
@@ -178,6 +197,9 @@ function clearSession() {
   state.token = null;
   state.user = null;
   state.round = null;
+  state.chickenRound = null;
+  state.chickenResult = null;
+  state.chickenBet = 0;
   state.balance = 0;
   state.selectedBet = 0;
   state.settled = false;
@@ -532,8 +554,9 @@ function addBet(value) {
   ui.currentBet.textContent = formatChips(state.selectedBet);
 }
 
-function openCustomBet() {
-  const available = state.balance - state.selectedBet;
+function openCustomBet(game = "game") {
+  state.customBetGame = game;
+  const available = state.balance - (game === "chicken" ? state.chickenBet : state.selectedBet);
   if (available < 5) return;
   ui.customBetInput.max = String(available);
   ui.customBetInput.value = String(Math.min(available, 100));
@@ -545,14 +568,15 @@ function openCustomBet() {
 
 function submitCustomBet(event) {
   event.preventDefault();
-  const available = state.balance - state.selectedBet;
+  const available = state.balance - (state.customBetGame === "chicken" ? state.chickenBet : state.selectedBet);
   const amount = Number(ui.customBetInput.value.replace?.(",", ".") ?? ui.customBetInput.value);
   if (!Number.isFinite(amount) || amount < 5 || amount > available || amount * 2 !== Math.round(amount * 2)) {
     ui.customBetError.textContent = `Bitte einen Betrag zwischen 5 und ${formatChips(available)} in 0,5er-Schritten eingeben.`;
     return;
   }
   ui.customBetDialog.close();
-  addBet(String(amount));
+  if (state.customBetGame === "chicken") addChickenBet(String(amount));
+  else addBet(String(amount));
 }
 
 async function gameRequest(path, body = {}) {
@@ -594,6 +618,143 @@ function setView(view) {
   if (view === "leaderboard") { state.leaderboardPage = 1; loadLeaderboard(); startLeaderboardPolling(); }
   else stopLeaderboardPolling();
   if (view === "upgrades") loadUpgrades();
+  if (view === "chicken") loadChicken();
+}
+
+function positionChicken(step) {
+  const position = (step + .5) / (ui.chickenLanes.length + 2);
+  ui.chickenActor.style.left = `${position * 100}%`;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  ui.chickenRoadScroll.scrollTo({ left: Math.max(0, ui.chickenRoad.clientWidth * position - ui.chickenRoadScroll.clientWidth * .35), behavior: reduced ? "instant" : "smooth" });
+}
+
+async function animateChickenStep(data) {
+  const lost = data.result?.won === false;
+  const step = lost ? data.result.steps + 1 : data.round?.steps ?? data.result?.steps ?? 0;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const pause = (ms) => new Promise((resolve) => setTimeout(resolve, reduced ? 0 : ms));
+  ui.chickenLanes[step - 1]?.classList.add("is-crossing");
+  ui.chickenMessage.textContent = "Das Huhn überquert die nächste Spur …";
+  ui.chickenActor.classList.add("is-walking");
+  positionChicken(step);
+  await pause(220);
+  ui.chickenActor.classList.remove("is-walking");
+  if (lost) {
+    ui.chickenImpactCar.style.left = `${(step + .5) / (ui.chickenLanes.length + 2) * 100}%`;
+    ui.chickenImpactCar.classList.add("is-hitting");
+    await pause(180);
+    ui.chickenActor.classList.add("is-crashed");
+    await pause(150);
+  } else if (step === ui.chickenLanes.length) {
+    positionChicken(step + 1);
+    await pause(220);
+  }
+}
+
+function updateChickenControls() {
+  const locked = Boolean(state.chickenRound) || state.busy;
+  if (!state.chickenRound && state.chickenBet > state.balance) state.chickenBet = 0;
+  const available = state.balance - state.chickenBet;
+  ui.chickenBet.textContent = formatChips(state.chickenRound?.bet ?? state.chickenBet);
+  ui.chickenChips.querySelectorAll("button").forEach((chip) => {
+    const value = chip.dataset.chickenBet;
+    chip.disabled = locked || (value === "custom" ? available < 5 : value === "all" ? available <= 0 : Number(value) > available);
+  });
+  ui.chickenClearBet.disabled = locked || state.chickenBet === 0;
+  ui.chickenStart.disabled = state.busy || state.chickenBet < 5 || state.chickenBet > state.balance;
+  ui.chickenStep.disabled = state.busy;
+  ui.chickenCashout.disabled = state.busy;
+}
+
+function addChickenBet(value) {
+  if (state.busy || state.chickenRound) return;
+  if (value === "custom") { openCustomBet("chicken"); return; }
+  const available = state.balance - state.chickenBet;
+  const amount = value === "all" ? available : Number(value);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > available) return;
+  state.chickenBet += amount;
+  updateChickenControls();
+}
+
+function renderChicken(result = state.chickenResult) {
+  const round = state.chickenRound;
+  ui.chickenBalance.textContent = formatChips(state.balance);
+  ui.chickenStart.hidden = Boolean(round);
+  ui.chickenStep.hidden = !round;
+  ui.chickenCashout.hidden = !round || round.steps === 0;
+  updateChickenControls();
+  const steps = round?.steps ?? result?.steps ?? 0;
+  ui.chickenPath.forEach((item, index) => item.classList.toggle("is-complete", index < steps));
+  ui.chickenLanes.forEach((lane, index) => {
+    lane.classList.toggle("is-safe", index < steps);
+    lane.classList.toggle("is-crossing", result?.won === false && index === steps);
+  });
+  ui.chickenActor.classList.toggle("is-crashed", result?.won === false);
+  ui.chickenActor.classList.toggle("is-winner", result?.won === true);
+  if (!result) ui.chickenImpactCar.classList.remove("is-hitting");
+  positionChicken(result?.won === false ? steps + 1 : steps === ui.chickenLanes.length ? steps + 1 : steps);
+  ui.chickenPayout.textContent = formatChips(round?.payout ?? result?.payout ?? 0);
+  if (result) {
+    ui.chickenMessage.textContent = result.won
+      ? `${result.steps} Schritte geschafft! ${formatChips(result.payout)} Chips ausgezahlt.`
+      : `Leider gescheitert. ${formatChips(-result.netResult)} Chips verloren.`;
+    if (result.refilled) ui.chickenMessage.textContent += ` Dein Kontostand wurde auf ${formatChips(state.balance)} Chips aufgefüllt.`;
+  } else if (round) {
+    ui.chickenMessage.textContent = round.steps ? `${round.steps} von ${ui.chickenLanes.length} Spuren geschafft. Weitergehen oder Gewinn sichern?` : "Runde gestartet. Wage den ersten Schritt!";
+  } else {
+    ui.chickenMessage.textContent = "Die Prozentzahl zeigt die Erfolgschance pro Schritt. Mit jedem Schritt steigt das Risiko, den Einsatz zu verlieren.";
+  }
+}
+
+async function loadChicken() {
+  if (state.busy) return;
+  state.busy = true;
+  renderChicken();
+  try {
+    const data = await api("/api/chicken/current");
+    state.chickenRound = data.round;
+    if (data.round) state.chickenResult = null;
+    state.balance = data.balance;
+    ui.balance.textContent = formatChips(data.balance);
+    renderChicken();
+  } catch (error) { ui.chickenMessage.textContent = error.message; }
+  finally {
+    state.busy = false;
+    updateChickenControls();
+    updateControls();
+  }
+}
+
+async function chickenRequest(action) {
+  if (state.busy) return;
+  const bet = state.chickenBet;
+  if (action === "start" && (!Number.isFinite(bet) || bet < 5 || bet * 2 !== Math.round(bet * 2) || bet > state.balance)) {
+    ui.chickenMessage.textContent = `Bitte 5 bis ${formatChips(state.balance)} Chips in 0,5er-Schritten setzen.`;
+    return;
+  }
+  state.busy = true;
+  renderChicken();
+  try {
+    const data = await api(`/api/chicken/${action}`, { method: "POST", body: JSON.stringify({ actionId: actionId(), ...(action === "start" ? { bet } : {}) }) });
+    if (action === "step") await animateChickenStep(data);
+    state.chickenRound = data.round;
+    state.chickenResult = data.result;
+    if (data.result) state.chickenBet = 0;
+    state.balance = data.balance;
+    ui.balance.textContent = formatChips(data.balance);
+    if (!state.round && state.selectedBet > data.balance) state.selectedBet = 0;
+    ui.currentBet.textContent = formatChips(state.round?.bet ?? state.selectedBet);
+    renderChicken(data.result);
+  } catch (error) {
+    state.busy = false;
+    renderChicken();
+    ui.chickenMessage.textContent = error.message;
+  }
+  finally {
+    state.busy = false;
+    updateChickenControls();
+    updateControls();
+  }
 }
 
 function renderUpgrades(data) {
@@ -812,6 +973,17 @@ ui.cropCanvas.addEventListener("pointermove", (event) => {
 ["pointerup", "pointercancel"].forEach((eventName) => ui.cropCanvas.addEventListener(eventName, () => { state.avatarCrop.dragging = false; }));
 ui.suspendedLogout.addEventListener("click", clearSession);
 ui.navLinks.forEach((link) => link.addEventListener("click", () => setView(link.dataset.view)));
+ui.chips.forEach((chip) => {
+  const copy = chip.cloneNode(true);
+  copy.dataset.chickenBet = copy.dataset.bet;
+  delete copy.dataset.bet;
+  copy.addEventListener("click", () => addChickenBet(copy.dataset.chickenBet));
+  ui.chickenChips.append(copy);
+});
+ui.chickenClearBet.addEventListener("click", () => { state.chickenBet = 0; updateChickenControls(); });
+ui.chickenStart.addEventListener("click", () => chickenRequest("start"));
+ui.chickenStep.addEventListener("click", () => chickenRequest("step"));
+ui.chickenCashout.addEventListener("click", () => chickenRequest("cashout"));
 document.querySelectorAll("[data-view-link], [data-open-view]").forEach((link) => link.addEventListener("click", (event) => {
   if (link.matches("a")) event.preventDefault();
   setView(link.dataset.viewLink || link.dataset.openView);
@@ -836,3 +1008,41 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) { sto
 ["click", "keydown", "pointerdown", "touchstart"].forEach((eventName) => document.addEventListener(eventName, () => { state.lastInteraction = Date.now(); }, { passive: true }));
 
 if (state.token) resumeCachedSession();
+
+// Start with the server cursor so opening the site never replays old wins.
+let bigWinCursor = null;
+async function pollBigWins() {
+  try {
+    if (document.hidden) { bigWinCursor = null; return; }
+    const query = bigWinCursor === null ? "" : `?after=${bigWinCursor}`;
+    const response = await fetch(`${API_URL}/api/big-wins${query}`, { signal: AbortSignal.timeout(8000), cache: "no-store" });
+    if (!response.ok) return;
+    const payload = await response.json();
+    if (!payload.success || !Array.isArray(payload.data?.wins)) return;
+    bigWinCursor = payload.data.cursor;
+    const container = document.querySelector("#win-notifications");
+    for (const win of payload.data.wins) {
+      const toast = document.createElement("div");
+      toast.className = "win-notification";
+      const title = document.createElement("span");
+      title.className = "win-notification__title";
+      title.textContent = `Großer Gewinn · ${win.game}`;
+      const player = document.createElement("strong");
+      player.textContent = win.username;
+      const amount = document.createElement("span");
+      amount.className = "win-notification__amount";
+      amount.textContent = `+${formatChips(win.amount)} Chips gewonnen`;
+      const close = document.createElement("button");
+      close.type = "button";
+      close.textContent = "×";
+      close.setAttribute("aria-label", "Mitteilung schließen");
+      close.addEventListener("click", () => toast.remove());
+      toast.append(title, player, amount, close);
+      container.append(toast);
+      while (container.children.length > 3) container.firstElementChild.remove();
+      setTimeout(() => toast.remove(), 8000);
+    }
+  } catch { /* A feed outage must not interrupt a game. */ }
+  finally { setTimeout(pollBigWins, 10000); }
+}
+pollBigWins();

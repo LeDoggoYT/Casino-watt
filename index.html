@@ -9,6 +9,16 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <aside id="win-notifications" class="win-notifications" aria-label="Große Gewinne" aria-live="polite" aria-relevant="additions"></aside>
+  <div class="casino-intro" aria-hidden="true">
+    <div class="casino-intro__halo"></div>
+    <div class="casino-intro__identity">
+      <div class="casino-intro__crest"><span>W</span></div>
+      <div class="casino-intro__name">Watt <strong>Casino</strong></div>
+      <div class="casino-intro__rule"></div>
+      <div class="casino-intro__caption">Willkommen am Tisch</div>
+    </div>
+  </div>
   <main class="auth-screen" id="auth-screen">
     <section class="auth-card" aria-labelledby="auth-title">
       <div class="auth-brand">
@@ -80,6 +90,7 @@
       <nav class="main-nav" aria-label="Hauptnavigation">
         <button class="nav-link is-active" type="button" data-view="home">Startseite</button>
         <button class="nav-link" type="button" data-view="game">Blackjack</button>
+        <button class="nav-link" type="button" data-view="chicken">Chicken</button>
         <button class="nav-link" type="button" data-view="leaderboard">Leaderboard</button>
         <button class="nav-link" type="button" data-view="upgrades">Upgrades</button>
       </nav>
@@ -99,12 +110,12 @@
         <div>
           <span class="section-kicker">Watt Casino</span>
           <h1 id="home-title">Wähle dein Spiel.</h1>
-          <p>Blackjack ist geöffnet. Entdecke die Spiele, die als Nächstes kommen.</p>
+          <p>Blackjack und Chicken sind geöffnet. Weitere Spiele kommen bald dazu.</p>
         </div>
         <span class="home-hero-mark" aria-hidden="true">W</span>
       </section>
       <section class="games-section" aria-labelledby="games-title">
-        <div class="games-heading"><div><span class="section-kicker">Spielübersicht</span><h2 id="games-title">Unsere Spiele</h2></div><span>1 von 9 verfügbar</span></div>
+        <div class="games-heading"><div><span class="section-kicker">Spielübersicht</span><h2 id="games-title">Unsere Spiele</h2></div><span>2 von 9 verfügbar</span></div>
         <div class="game-grid">
           <article class="game-tile game-tile--available">
             <div class="game-tile-art game-tile-art--blackjack" aria-hidden="true"><span>♠</span><span>21</span></div>
@@ -114,10 +125,53 @@
           <article class="game-tile"><div class="game-tile-art game-tile-art--poker" aria-hidden="true">♣</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Poker</h3><p>Spiele deine besten Karten.</p></div></article>
           <article class="game-tile"><div class="game-tile-art game-tile-art--pinball" aria-hidden="true">◎</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Pinball</h3><p>Halte die Kugel im Spiel.</p></div></article>
           <article class="game-tile"><div class="game-tile-art game-tile-art--hilo" aria-hidden="true">↑↓</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Hi-Lo</h3><p>Ist die nächste Karte höher oder tiefer?</p></div></article>
-          <article class="game-tile"><div class="game-tile-art game-tile-art--chicken" aria-hidden="true">🐔</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Chicken</h3><p>Wie weit traust du dich?</p></div></article>
+          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--chicken" aria-hidden="true">🐔</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Chicken</h3><p>Gehe weiter oder sichere deinen Gewinn.</p><button class="game-tile-button" type="button" data-open-view="chicken">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
           <article class="game-tile"><div class="game-tile-art game-tile-art--slots" aria-hidden="true">✦</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Slots</h3><p>Dreh die Walzen und entdecke Neues.</p></div></article>
           <article class="game-tile"><div class="game-tile-art game-tile-art--loot" aria-hidden="true">◇</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Loot Boxen</h3><p>Öffne eine Box und entdecke den Inhalt.</p></div></article>
           <article class="game-tile"><div class="game-tile-art game-tile-art--mines" aria-hidden="true">✣</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Mines</h3><p>Decke Felder auf und meide die Minen.</p></div></article>
+        </div>
+      </section>
+    </main>
+
+    <main id="chicken-view" class="app-view chicken-view" hidden>
+      <section class="chicken-panel" aria-labelledby="chicken-title">
+        <header class="section-header"><div><span class="section-kicker">Watt Casino</span><h1 id="chicken-title">Chicken</h1><p>Gehe Schritt für Schritt weiter. Sichere deinen Gewinn, bevor du scheiterst.</p></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="chicken-balance">–</span> <small>Chips</small></strong></div></header>
+        <div class="chicken-content">
+          <div class="chicken-road-scroll" id="chicken-road-scroll" tabindex="0" aria-label="Straße mit zehn Fahrspuren. Seitlich scrollbar; die Ansicht folgt dem Huhn.">
+            <div class="chicken-road" id="chicken-road">
+              <div class="chicken-curb chicken-curb--start"><span>Start</span></div>
+              <div class="chicken-lanes" aria-hidden="true">
+                <div class="chicken-lane"><i class="traffic-car"><b></b></i><i class="traffic-car traffic-car--second"><b></b></i></div>
+                <div class="chicken-lane"><i class="traffic-car"><b></b></i><i class="traffic-car traffic-car--second"><b></b></i></div>
+                <div class="chicken-lane"><i class="traffic-car"><b></b></i><i class="traffic-car traffic-car--second"><b></b></i></div>
+                <div class="chicken-lane"><i class="traffic-car"><b></b></i><i class="traffic-car traffic-car--second"><b></b></i></div>
+                <div class="chicken-lane"><i class="traffic-car"><b></b></i><i class="traffic-car traffic-car--second"><b></b></i></div>
+                <div class="chicken-lane"><i class="traffic-car"><b></b></i><i class="traffic-car traffic-car--second"><b></b></i></div>
+                <div class="chicken-lane"><i class="traffic-car"><b></b></i><i class="traffic-car traffic-car--second"><b></b></i></div>
+                <div class="chicken-lane"><i class="traffic-car"><b></b></i><i class="traffic-car traffic-car--second"><b></b></i></div>
+                <div class="chicken-lane"><i class="traffic-car"><b></b></i><i class="traffic-car traffic-car--second"><b></b></i></div>
+                <div class="chicken-lane"><i class="traffic-car"><b></b></i><i class="traffic-car traffic-car--second"><b></b></i></div>
+              </div>
+              <div class="chicken-curb chicken-curb--finish"><span>Ziel</span></div>
+<ol class="chicken-path" aria-label="Zehn Schritte"><li><span title="Erfolgschance für diesen Schritt">98 %</span><strong>0,5×</strong></li><li><span title="Erfolgschance für diesen Schritt">96 %</span><strong>0,8×</strong></li><li><span title="Erfolgschance für diesen Schritt">94 %</span><strong>1×</strong></li><li><span title="Erfolgschance für diesen Schritt">92 %</span><strong>2,4×</strong></li><li><span title="Erfolgschance für diesen Schritt">90 %</span><strong>3,0×</strong></li><li><span title="Erfolgschance für diesen Schritt">87 %</span><strong>3,8×</strong></li><li><span title="Erfolgschance für diesen Schritt">84 %</span><strong>4,8×</strong></li><li><span title="Erfolgschance für diesen Schritt">80 %</span><strong>6,0×</strong></li><li><span title="Erfolgschance für diesen Schritt">75 %</span><strong>7,5×</strong></li><li><span title="Erfolgschance für diesen Schritt">70 %</span><strong>9,5×</strong></li></ol>
+              <div class="chicken-actor" id="chicken-actor" aria-hidden="true">
+                <svg viewBox="0 0 80 88" class="chicken-bird"><ellipse cx="36" cy="80" rx="25" ry="5" fill="#000" opacity=".2"/><g class="chicken-feet" stroke="#efaa42" stroke-width="5" stroke-linecap="round"><path d="M29 66v11h-9M45 66v11h9"/></g><g class="chicken-body"><path d="M21 40 5 26 8 51 21 58" fill="#d5dfd4"/><ellipse cx="35" cy="51" rx="25" ry="23" fill="#fff9e5"/><path d="M19 47q3 20 23 11" fill="#e5e8d5"/><path d="M43 22q-8-16 0-18 5-1 7 7 5-10 10-5 4 5-3 12" fill="#e35b52"/><circle cx="51" cy="29" r="18" fill="#fff9e5"/><path d="m65 27 13 7-14 7" fill="#efaa42"/><circle cx="57" cy="24" r="3.5" fill="#20312b"/><circle cx="58" cy="23" r="1" fill="white"/><path d="M61 41q6 14-3 14-7-1-3-12" fill="#e35b52"/></g></svg>
+                <span class="chicken-impact">✦</span>
+              </div>
+              <i class="traffic-car chicken-impact-car" id="chicken-impact-car" aria-hidden="true"><b></b></i>
+              <span class="chicken-road-caption">10 Spuren · Weiter nach rechts →</span>
+            </div>
+          </div>
+          <div class="chicken-controls">
+            <div class="control-heading"><h2>Einsatz wählen</h2><button id="chicken-clear-bet" class="text-button" type="button">Einsatz löschen</button></div>
+            <div class="chip-row" id="chicken-chips" aria-label="Chips für Chicken auswählen"></div>
+            <div class="chicken-totals" aria-live="polite">
+              <div class="chicken-amount"><span>Aktueller Einsatz</span><strong><span id="chicken-bet">0</span> <small>Chips</small></strong></div>
+              <div class="chicken-amount chicken-amount--payout"><span>Auszahlung</span><strong><span id="chicken-payout">0</span> <small>Chips</small></strong></div>
+            </div>
+            <div class="chicken-actions"><button id="chicken-start" class="chicken-primary" type="button">Runde starten</button><button id="chicken-step" type="button" hidden>Nächster Schritt</button><button id="chicken-cashout" type="button" hidden>Gewinn sichern</button></div>
+            <p id="chicken-message" class="chicken-message" role="status" aria-live="polite">Die Prozentzahl zeigt die Erfolgschance pro Schritt. Mit jedem Schritt steigt das Risiko, den Einsatz zu verlieren.</p>
+          </div>
         </div>
       </section>
     </main>
