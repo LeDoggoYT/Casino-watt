@@ -32,7 +32,7 @@ LAST_CLEANUP_AT = 0.0
 AUTH_TOUCH_SECONDS = 5 * 60
 CLEANUP_INTERVAL_SECONDS = 15 * 60
 MAX_UPGRADE_LEVEL = 5
-CHICKEN_MULTIPLIERS = (1.2, 1.5, 1.9, 2.4, 3.0, 3.8, 4.8, 6.0, 7.5, 9.5)
+CHICKEN_MULTIPLIERS = (0.5, 0.8, 1.0, 2.4, 3.0, 3.8, 4.8, 6.0, 7.5, 9.5)
 UPGRADES = {
     "starting_capital": {"name": "Startkapital", "base_cost": 750, "effect": "+250 Chips Neustartkapital je Level"},
     "luck": {"name": "Glück", "base_cost": 1500, "effect": "+2 % Rettungschance je Level"},

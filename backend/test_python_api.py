@@ -61,14 +61,14 @@ class WattCasinoApiTests(unittest.TestCase):
         with patch("app.secrets.randbelow", return_value=0):
             step = self.request("POST", "/api/chicken/step", {"actionId": "chicken-step-action-0001"}, token)
         self.assertEqual(step.get_json()["data"]["round"]["steps"], 1)
-        self.assertEqual(step.get_json()["data"]["round"]["payout"], 1200)
+        self.assertEqual(step.get_json()["data"]["round"]["payout"], 500)
         duplicate = self.request("POST", "/api/chicken/step", {"actionId": "chicken-step-action-0001"}, token)
         self.assertEqual(duplicate.status_code, 409)
         cashed = self.request("POST", "/api/chicken/cashout", {"actionId": "chicken-cashout-action-0001"}, token)
-        self.assertEqual(cashed.get_json()["data"]["balance"], 1200)
+        self.assertEqual(cashed.get_json()["data"]["balance"], 500)
         self.assertIsNone(cashed.get_json()["data"]["round"])
 
-        started = self.request("POST", "/api/chicken/start", {"bet": 1200, "actionId": "chicken-start-action-0002"}, token)
+        started = self.request("POST", "/api/chicken/start", {"bet": 500, "actionId": "chicken-start-action-0002"}, token)
         self.assertEqual(started.status_code, 201)
         with patch("app.secrets.randbelow", return_value=99):
             lost = self.request("POST", "/api/chicken/step", {"actionId": "chicken-step-action-0002"}, token)
@@ -82,6 +82,8 @@ class WattCasinoApiTests(unittest.TestCase):
                 data = response.get_json()["data"]
                 if step_number < 10:
                     self.assertEqual(data["round"]["steps"], step_number)
+                    if step_number <= 3:
+                        self.assertEqual(data["round"]["payout"], (2.5, 4, 5)[step_number - 1])
                 else:
                     self.assertIsNone(data["round"])
                     self.assertEqual(data["result"]["steps"], 10)
