@@ -1,5 +1,21 @@
 "use strict";
 
+// Let the intro finish once; focus changes must neither stop nor restart it.
+(() => {
+  const intro = document.querySelector(".casino-intro");
+  if (!intro) return;
+  let fallback;
+  const dismiss = () => {
+    intro.remove();
+    clearTimeout(fallback);
+  };
+  intro.addEventListener("animationend", event => {
+    if (event.target === intro && event.animationName === "casino-intro-exit") dismiss();
+  });
+  fallback = setTimeout(dismiss, 2500);
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) dismiss();
+})();
+
 // Für das Deployment ausschließlich diese Adresse auf die HTTPS-API-Domain ändern.
 // Öffentliche PythonAnywhere-API für das Netlify-Frontend.
 const API_URL = "https://ledoggo.pythonanywhere.com";
@@ -556,7 +572,7 @@ function addBet(value) {
 
 function openCustomBet(game = "game") {
   state.customBetGame = game;
-  const available = state.balance - (game === "chicken" ? state.chickenBet : state.selectedBet);
+  const available = state.balance - (game === "crash" ? crashSelectedBet : game === "pinball" ? pinballSelectedBet : game === "chicken" ? state.chickenBet : state.selectedBet);
   if (available < 5) return;
   ui.customBetInput.max = String(available);
   ui.customBetInput.value = String(Math.min(available, 100));
@@ -568,14 +584,16 @@ function openCustomBet(game = "game") {
 
 function submitCustomBet(event) {
   event.preventDefault();
-  const available = state.balance - (state.customBetGame === "chicken" ? state.chickenBet : state.selectedBet);
+  const available = state.balance - (state.customBetGame === "crash" ? crashSelectedBet : state.customBetGame === "pinball" ? pinballSelectedBet : state.customBetGame === "chicken" ? state.chickenBet : state.selectedBet);
   const amount = Number(ui.customBetInput.value.replace?.(",", ".") ?? ui.customBetInput.value);
   if (!Number.isFinite(amount) || amount < 5 || amount > available || amount * 2 !== Math.round(amount * 2)) {
     ui.customBetError.textContent = `Bitte einen Betrag zwischen 5 und ${formatChips(available)} in 0,5er-Schritten eingeben.`;
     return;
   }
   ui.customBetDialog.close();
-  if (state.customBetGame === "chicken") addChickenBet(String(amount));
+  if (state.customBetGame === "crash") addCrashBet(String(amount));
+  else if (state.customBetGame === "pinball") addPinballBet(String(amount));
+  else if (state.customBetGame === "chicken") addChickenBet(String(amount));
   else addBet(String(amount));
 }
 
@@ -619,6 +637,8 @@ function setView(view) {
   else stopLeaderboardPolling();
   if (view === "upgrades") loadUpgrades();
   if (view === "chicken") loadChicken();
+  if (view === "pinball") updatePinballControls();
+  if (view === "crash") startCrash();
 }
 
 function positionChicken(step) {

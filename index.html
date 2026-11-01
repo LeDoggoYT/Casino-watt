@@ -6,7 +6,7 @@
   <meta name="description" content="Watt Casino – kostenloses Blackjack mit virtuellem Spielgeld.">
   <title>Wigipeadia</title>
   <link rel="icon" href="https://www.wikipedia.org/static/favicon/wikipedia.ico" sizes="any">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=crash-1">
 </head>
 <body>
   <aside id="win-notifications" class="win-notifications" aria-label="Große Gewinne" aria-live="polite" aria-relevant="additions"></aside>
@@ -115,15 +115,15 @@
         <span class="home-hero-mark" aria-hidden="true">W</span>
       </section>
       <section class="games-section" aria-labelledby="games-title">
-        <div class="games-heading"><div><span class="section-kicker">Spielübersicht</span><h2 id="games-title">Unsere Spiele</h2></div><span>2 von 9 verfügbar</span></div>
+        <div class="games-heading"><div><span class="section-kicker">Spielübersicht</span><h2 id="games-title">Unsere Spiele</h2></div><span>4 von 9 verfügbar</span></div>
         <div class="game-grid">
           <article class="game-tile game-tile--available">
             <div class="game-tile-art game-tile-art--blackjack" aria-hidden="true"><span>♠</span><span>21</span></div>
             <div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Blackjack</h3><p>Komm so nah wie möglich an 21.</p><button class="game-tile-button" type="button" data-open-view="game">Spiel öffnen <span aria-hidden="true">→</span></button></div>
           </article>
-          <article class="game-tile"><div class="game-tile-art game-tile-art--crash" aria-hidden="true">↗</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Crash</h3><p>Steige aus, bevor die Kurve fällt.</p></div></article>
+          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--crash" aria-hidden="true">↗</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Crash</h3><p>Gemeinsam starten. Rechtzeitig aussteigen.</p><button class="game-tile-button" type="button" data-open-view="crash">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
           <article class="game-tile"><div class="game-tile-art game-tile-art--poker" aria-hidden="true">♣</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Poker</h3><p>Spiele deine besten Karten.</p></div></article>
-          <article class="game-tile"><div class="game-tile-art game-tile-art--pinball" aria-hidden="true">◎</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Pinball</h3><p>Halte die Kugel im Spiel.</p></div></article>
+          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--pinball" aria-hidden="true">◎</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Pinball</h3><p>Lass die Kugel fallen und triff dein Gewinnfeld.</p><button class="game-tile-button" type="button" data-open-view="pinball">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
           <article class="game-tile"><div class="game-tile-art game-tile-art--hilo" aria-hidden="true">↑↓</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Hi-Lo</h3><p>Ist die nächste Karte höher oder tiefer?</p></div></article>
           <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--chicken" aria-hidden="true">🐔</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Chicken</h3><p>Gehe weiter oder sichere deinen Gewinn.</p><button class="game-tile-button" type="button" data-open-view="chicken">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
           <article class="game-tile"><div class="game-tile-art game-tile-art--slots" aria-hidden="true">✦</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Slots</h3><p>Dreh die Walzen und entdecke Neues.</p></div></article>
@@ -133,11 +133,51 @@
       </section>
     </main>
 
+    <main id="crash-view" class="app-view crash-view" hidden>
+      <header class="crash-header"><div><span class="section-kicker">Gemeinsame Server-Runde</span><h1>Crash</h1></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="crash-balance">–</span> <small>Chips</small></strong></div></header>
+      <section class="crash-history-panel" aria-label="Vergangene Runden"><span>Letzte Runden</span><div id="crash-history" class="crash-history"></div></section>
+      <aside class="crash-sidebar">
+        <form id="crash-form" class="chicken-controls crash-controls">
+          <div class="control-heading"><h2>Einsatz wählen</h2><button id="crash-clear" class="text-button" type="button">Einsatz löschen</button></div>
+          <div id="crash-chips" class="chip-row" aria-label="Chips für Crash auswählen"></div>
+          <div class="chicken-amount"><span>Dein Einsatz</span><strong><span id="crash-bet">0</span> <small>Chips</small></strong></div>
+          <button id="crash-submit" class="crash-primary" type="submit" disabled>Verbinden …</button>
+          <p id="crash-message" role="status" aria-live="polite">Einsatz vor dem Start setzen und vor dem Crash aussteigen.</p>
+        </form>
+        <section class="crash-players-panel" aria-labelledby="crash-players-title"><div class="control-heading"><h2 id="crash-players-title">Spieler</h2><span id="crash-player-count">0</span></div><p class="crash-list-hint">Name · Einsatz · Ergebnis</p><div id="crash-players" class="crash-players"></div></section>
+        <section class="crash-players-panel"><h2>Letzte Runde</h2><div id="crash-previous" class="crash-players"></div></section>
+      </aside>
+      <section class="crash-stage" aria-label="Gemeinsamer Crash-Verlauf">
+        <div class="crash-stage-top"><span id="crash-round-label">Runde –</span><span id="crash-connection">Verbindung wird aufgebaut</span></div>
+        <div class="crash-chart">
+          <svg viewBox="0 0 800 500" role="img" aria-label="Steigender Multiplikator über die Zeit">
+            <defs><linearGradient id="crash-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e9bf6d" stop-opacity=".8"/><stop offset="100%" stop-color="#d5a653" stop-opacity=".08"/></linearGradient></defs>
+            <path class="crash-grid" d="M60 50V440H760 M60 340H760 M60 240H760 M60 140H760"/>
+            <path id="crash-fill" fill="url(#crash-gradient)"/>
+            <path id="crash-line" fill="none" stroke="#f4e4bd" stroke-width="5" stroke-linecap="round"/>
+            <circle id="crash-dot" cx="60" cy="440" r="7" fill="#fff5dc"/>
+            <text x="12" y="444" class="crash-axis">1×</text><text id="crash-axis-top" x="12" y="55" class="crash-axis">2×</text><text id="crash-axis-time" x="700" y="477" class="crash-axis">0 s</text>
+          </svg>
+          <div class="crash-readout"><span id="crash-phase">Verbindung …</span><strong id="crash-multiplier">1,00×</strong><span id="crash-countdown"></span></div>
+        </div>
+        <p class="crash-stage-note">Alle spielen dieselbe Runde. Der Server bestätigt deinen Ausstieg; bei Verbindungsabbruch läuft die Runde weiter.</p>
+      </section>
+    </main>
+    <main id="pinball-view" class="app-view pinball-view" hidden>
+      <header class="pinball-header"><div><span class="section-kicker">Watt Casino</span><h1>Pinball</h1></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="pinball-balance">0</span> <small>Chips</small></strong></div></header>
+      <div class="pinball-board"><svg id="pinball-board" viewBox="40 0 520 570" role="img" aria-label="Kugelbahn mit zwölf Reihen und dreizehn Gewinnfeldern"></svg><div id="pinball-slots" class="pinball-slots"></div></div>
+      <form id="pinball-form" class="pinball-controls chicken-controls">
+        <div class="control-heading"><h2>Einsatz wählen</h2><button id="pinball-clear-bet" class="text-button" type="button">Einsatz löschen</button></div>
+        <div class="chip-row" id="pinball-chips" aria-label="Chips für Pinball auswählen"></div>
+        <div class="chicken-amount"><span>Aktueller Einsatz</span><strong><span id="pinball-bet">0</span> <small>Chips</small></strong></div>
+        <button type="submit" id="pinball-play">Kugel spielen</button><p id="pinball-message" role="status" aria-live="polite">12 Reihen · Auszahlung inklusive Einsatz</p>
+      </form>
+    </main>
     <main id="chicken-view" class="app-view chicken-view" hidden>
       <section class="chicken-panel" aria-labelledby="chicken-title">
         <header class="section-header"><div><span class="section-kicker">Watt Casino</span><h1 id="chicken-title">Chicken</h1><p>Gehe Schritt für Schritt weiter. Sichere deinen Gewinn, bevor du scheiterst.</p></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="chicken-balance">–</span> <small>Chips</small></strong></div></header>
         <div class="chicken-content">
-          <div class="chicken-road-scroll" id="chicken-road-scroll" tabindex="0" aria-label="Straße mit zehn Fahrspuren. Seitlich scrollbar; die Ansicht folgt dem Huhn.">
+          <div class="chicken-road-scroll" id="chicken-road-scroll" tabindex="0" aria-label="Straße mit neun Fahrspuren. Seitlich scrollbar; die Ansicht folgt dem Huhn.">
             <div class="chicken-road" id="chicken-road">
               <div class="chicken-curb chicken-curb--start"><span>Start</span></div>
               <div class="chicken-lanes" aria-hidden="true">
@@ -150,16 +190,15 @@
                 <div class="chicken-lane"><i class="traffic-car"><b></b></i><i class="traffic-car traffic-car--second"><b></b></i></div>
                 <div class="chicken-lane"><i class="traffic-car"><b></b></i><i class="traffic-car traffic-car--second"><b></b></i></div>
                 <div class="chicken-lane"><i class="traffic-car"><b></b></i><i class="traffic-car traffic-car--second"><b></b></i></div>
-                <div class="chicken-lane"><i class="traffic-car"><b></b></i><i class="traffic-car traffic-car--second"><b></b></i></div>
               </div>
               <div class="chicken-curb chicken-curb--finish"><span>Ziel</span></div>
-<ol class="chicken-path" aria-label="Zehn Schritte"><li><span title="Erfolgschance für diesen Schritt">98 %</span><strong>0,5×</strong></li><li><span title="Erfolgschance für diesen Schritt">96 %</span><strong>0,8×</strong></li><li><span title="Erfolgschance für diesen Schritt">94 %</span><strong>1×</strong></li><li><span title="Erfolgschance für diesen Schritt">92 %</span><strong>2,4×</strong></li><li><span title="Erfolgschance für diesen Schritt">90 %</span><strong>3,0×</strong></li><li><span title="Erfolgschance für diesen Schritt">87 %</span><strong>3,8×</strong></li><li><span title="Erfolgschance für diesen Schritt">84 %</span><strong>4,8×</strong></li><li><span title="Erfolgschance für diesen Schritt">80 %</span><strong>6,0×</strong></li><li><span title="Erfolgschance für diesen Schritt">75 %</span><strong>7,5×</strong></li><li><span title="Erfolgschance für diesen Schritt">70 %</span><strong>9,5×</strong></li></ol>
+<ol class="chicken-path" aria-label="Neun Schritte"><li><span title="Erfolgschance für diesen Schritt">90 %</span><strong>0,8×</strong></li><li><span title="Erfolgschance für diesen Schritt">85 %</span><strong>1×</strong></li><li><span title="Erfolgschance für diesen Schritt">80 %</span><strong>2,4×</strong></li><li><span title="Erfolgschance für diesen Schritt">75 %</span><strong>3,0×</strong></li><li><span title="Erfolgschance für diesen Schritt">70 %</span><strong>3,8×</strong></li><li><span title="Erfolgschance für diesen Schritt">65 %</span><strong>4,8×</strong></li><li><span title="Erfolgschance für diesen Schritt">60 %</span><strong>6,0×</strong></li><li><span title="Erfolgschance für diesen Schritt">55 %</span><strong>7,5×</strong></li><li><span title="Erfolgschance für diesen Schritt">50 %</span><strong>9,5×</strong></li></ol>
               <div class="chicken-actor" id="chicken-actor" aria-hidden="true">
                 <svg viewBox="0 0 80 88" class="chicken-bird"><ellipse cx="36" cy="80" rx="25" ry="5" fill="#000" opacity=".2"/><g class="chicken-feet" stroke="#efaa42" stroke-width="5" stroke-linecap="round"><path d="M29 66v11h-9M45 66v11h9"/></g><g class="chicken-body"><path d="M21 40 5 26 8 51 21 58" fill="#d5dfd4"/><ellipse cx="35" cy="51" rx="25" ry="23" fill="#fff9e5"/><path d="M19 47q3 20 23 11" fill="#e5e8d5"/><path d="M43 22q-8-16 0-18 5-1 7 7 5-10 10-5 4 5-3 12" fill="#e35b52"/><circle cx="51" cy="29" r="18" fill="#fff9e5"/><path d="m65 27 13 7-14 7" fill="#efaa42"/><circle cx="57" cy="24" r="3.5" fill="#20312b"/><circle cx="58" cy="23" r="1" fill="white"/><path d="M61 41q6 14-3 14-7-1-3-12" fill="#e35b52"/></g></svg>
                 <span class="chicken-impact">✦</span>
               </div>
               <i class="traffic-car chicken-impact-car" id="chicken-impact-car" aria-hidden="true"><b></b></i>
-              <span class="chicken-road-caption">10 Spuren · Weiter nach rechts →</span>
+              <span class="chicken-road-caption">9 Spuren · Weiter nach rechts →</span>
             </div>
           </div>
           <div class="chicken-controls">
@@ -351,6 +390,8 @@
     </form>
   </dialog>
 
-  <script src="script.js" defer></script>
+  <script src="script.js?v=crash-1" defer></script>
+  <script src="pinball.js?v=pinball-alignment-3" defer></script>
+  <script src="crash.js?v=1" defer></script>
 </body>
 </html>
