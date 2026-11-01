@@ -32,8 +32,8 @@ LAST_CLEANUP_AT = 0.0
 AUTH_TOUCH_SECONDS = 5 * 60
 CLEANUP_INTERVAL_SECONDS = 15 * 60
 MAX_UPGRADE_LEVEL = 5
-CHICKEN_MULTIPLIERS = (0.5, 0.8, 1.0, 2.4, 3.0, 3.8, 4.8, 6.0, 7.5, 9.5)
-CHICKEN_SUCCESS_CHANCES = (98, 96, 94, 92, 90, 87, 84, 80, 75, 70)
+CHICKEN_MULTIPLIERS = (0.8, 1.0, 2.4, 3.0, 3.8, 4.8, 6.0, 7.5, 9.5)
+CHICKEN_SUCCESS_CHANCES = (90, 85, 80, 75, 70, 65, 60, 55, 50)
 UPGRADES = {
     "starting_capital": {"name": "Startkapital", "base_cost": 750, "effect": "+250 Chips Neustartkapital je Level"},
     "luck": {"name": "Glück", "base_cost": 1500, "effect": "+2 % Rettungschance je Level"},
@@ -837,6 +837,8 @@ def make_app():
             register_action(g.auth["user_id"], payload.get("actionId"), "chicken-step")
             row = db.execute("SELECT * FROM active_chicken_rounds WHERE user_id=?", (g.auth["user_id"],)).fetchone()
             if not row: raise ApiError(409, "Es läuft keine Chicken-Runde.")
+            if row["steps"] >= len(CHICKEN_MULTIPLIERS):
+                return ok(finish_chicken(db, row, True), "Alle Schritte geschafft!")
             if secrets.randbelow(100) >= CHICKEN_SUCCESS_CHANCES[row["steps"]]:
                 return ok(finish_chicken(db, row, False), "Der Schritt ging schief.")
             steps = row["steps"] + 1

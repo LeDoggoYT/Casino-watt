@@ -61,14 +61,14 @@ class WattCasinoApiTests(unittest.TestCase):
         with patch("app.secrets.randbelow", return_value=0):
             step = self.request("POST", "/api/chicken/step", {"actionId": "chicken-step-action-0001"}, token)
         self.assertEqual(step.get_json()["data"]["round"]["steps"], 1)
-        self.assertEqual(step.get_json()["data"]["round"]["payout"], 500)
+        self.assertEqual(step.get_json()["data"]["round"]["payout"], 800)
         duplicate = self.request("POST", "/api/chicken/step", {"actionId": "chicken-step-action-0001"}, token)
         self.assertEqual(duplicate.status_code, 409)
         cashed = self.request("POST", "/api/chicken/cashout", {"actionId": "chicken-cashout-action-0001"}, token)
-        self.assertEqual(cashed.get_json()["data"]["balance"], 500)
+        self.assertEqual(cashed.get_json()["data"]["balance"], 800)
         self.assertIsNone(cashed.get_json()["data"]["round"])
 
-        started = self.request("POST", "/api/chicken/start", {"bet": 500, "actionId": "chicken-start-action-0002"}, token)
+        started = self.request("POST", "/api/chicken/start", {"bet": 800, "actionId": "chicken-start-action-0002"}, token)
         self.assertEqual(started.status_code, 201)
         with patch("app.secrets.randbelow", return_value=99):
             lost = self.request("POST", "/api/chicken/step", {"actionId": "chicken-step-action-0002"}, token)
@@ -76,17 +76,17 @@ class WattCasinoApiTests(unittest.TestCase):
         self.assertEqual(lost.get_json()["data"]["balance"], 1000)
         self.request("POST", "/api/chicken/start", {"bet": 5, "actionId": "chicken-ten-start-0001"}, token)
         with patch("app.secrets.randbelow", return_value=0):
-            for step_number in range(1, 11):
+            for step_number in range(1, 10):
                 response = self.request("POST", "/api/chicken/step", {"actionId": f"chicken-ten-step-{step_number:04d}"}, token)
                 self.assertEqual(response.status_code, 200)
                 data = response.get_json()["data"]
-                if step_number < 10:
+                if step_number < 9:
                     self.assertEqual(data["round"]["steps"], step_number)
                     if step_number <= 3:
-                        self.assertEqual(data["round"]["payout"], (2.5, 4, 5)[step_number - 1])
+                        self.assertEqual(data["round"]["payout"], (4, 5, 12)[step_number - 1])
                 else:
                     self.assertIsNone(data["round"])
-                    self.assertEqual(data["result"]["steps"], 10)
+                    self.assertEqual(data["result"]["steps"], 9)
                     self.assertEqual(data["result"]["payout"], 47.5)
                     self.assertEqual(data["balance"], 1042.5)
 
