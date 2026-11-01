@@ -821,7 +821,7 @@ def make_app():
             # Pick either side equally, then favour it slightly on each bounce.
             # This increases winning outer landings without changing payouts.
             preferred_side = secrets.randbelow(2)
-            path = [preferred_side if secrets.randbelow(100) < 62 else 1 - preferred_side
+            path = [preferred_side if secrets.randbelow(100) < 61 else 1 - preferred_side
                     for _ in range(len(multipliers) - 1)]
             slot = sum(path)
             payout = round(bet * multipliers[slot] * 2) / 2
