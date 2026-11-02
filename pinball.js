@@ -35,7 +35,7 @@ ui.chips.forEach(chip => {
 document.querySelector("#pinball-clear-bet").addEventListener("click", () => { pinballSelectedBet = 0; updatePinballControls(); });
 const pinballForm = document.querySelector("#pinball-form");
 const pinballMessage = document.querySelector("#pinball-message");
-const pinballMultipliers = [74, 12, 3.6, 1.5, .8, 0, .8, 1.5, 3.6, 12, 74];
+let pinballMultipliers = [74, 12, 3.6, 1.5, .8, 0, .8, 1.5, 3.6, 12, 74];
 function pinballMultiplierLabel(value) {
   return `${value === 0 ? "0,0" : String(value).replace(".", ",")}×`;
 }
@@ -45,16 +45,26 @@ function pinballCircle(x, y, radius, className) {
   pinballSvg.append(circle);
   return circle;
 }
-for (let row = 0; row < pinballMultipliers.length - 1; row++) {
-  for (let col = 0; col < row + 3; col++) pinballCircle(300 + (col - (row + 2) / 2) * 40, 55 + row * 40, 4.5, "pinball-peg");
-}
-pinballMultipliers.forEach((value, index) => {
-  const slot = document.createElement("span");
-  slot.textContent = pinballMultiplierLabel(value);
-  slot.style.setProperty("--slot-color", `hsl(${Math.min(index, pinballMultipliers.length - 1 - index) * 9} 78% 55%)`);
-  pinballSlots.append(slot);
-});
 const pinballBall = pinballCircle(300, 20, 8, "pinball-ball");
+function renderPinballBoard(multipliers) {
+  pinballMultipliers = multipliers;
+  pinballSvg.querySelectorAll(".pinball-peg").forEach(peg => peg.remove());
+  for (let row = 0; row < multipliers.length - 1; row++) {
+    for (let col = 0; col < row + 3; col++) pinballCircle(300 + (col - (row + 2) / 2) * 40, 55 + row * 40, 4.5, "pinball-peg");
+  }
+  pinballSvg.append(pinballBall);
+  pinballSvg.setAttribute("viewBox", `40 0 520 ${90 + (multipliers.length - 1) * 40}`);
+  pinballSvg.setAttribute("aria-label", `Kugelbahn mit ${multipliers.length - 1} Reihen und ${multipliers.length} Gewinnfeldern`);
+  pinballSlots.style.gridTemplateColumns = `repeat(${multipliers.length}, minmax(0, 1fr))`;
+  pinballSlots.replaceChildren();
+  multipliers.forEach((value, index) => {
+    const slot = document.createElement("span");
+    slot.textContent = pinballMultiplierLabel(value);
+    slot.style.setProperty("--slot-color", `hsl(${Math.min(index, multipliers.length - 1 - index) * 9} 78% 55%)`);
+    pinballSlots.append(slot);
+  });
+}
+renderPinballBoard(pinballMultipliers);
 function launchPinball() {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
     pinballBall.setAttribute("cy", 47);
@@ -85,7 +95,8 @@ async function animatePinball(path, slot) {
   const points = [{ x, y: 47 }];
   path.forEach((direction, index) => { x += direction ? 20 : -20; points.push({ x, y: 87 + index * 40 }); });
   // Use the actual field centre, including CSS gaps and responsive sizing.
-  points.push({ x: pinballTargetX(slot), y: 470 });
+  const landingY = 70 + (pinballMultipliers.length - 1) * 40;
+  points.push({ x: pinballTargetX(slot), y: landingY });
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (!reduced) {
     await new Promise(resolve => {
@@ -103,7 +114,7 @@ async function animatePinball(path, slot) {
     });
   }
   pinballBall.setAttribute("cx", pinballTargetX(slot));
-  pinballBall.setAttribute("cy", 470);
+  pinballBall.setAttribute("cy", landingY);
 }
 pinballForm.addEventListener("submit", async event => {
   event.preventDefault();
@@ -124,12 +135,16 @@ pinballForm.addEventListener("submit", async event => {
     if (state.token !== token) return;
     state.balance = data.balance;
     pinballSelectedBet = 0;
+    if (Array.isArray(data.multipliers) && [11, 13].includes(data.multipliers.length) &&
+        data.multipliers.every(value => Number.isFinite(value) && value >= 0) &&
+        data.multipliers.some((value, index) => value !== pinballMultipliers[index])) {
+      renderPinballBoard(data.multipliers);
+    }
     if (!Array.isArray(data.path) || data.path.some(step => step !== 0 && step !== 1) ||
         !Number.isInteger(data.slot) || data.slot < 0 || data.slot >= pinballMultipliers.length ||
         data.path.length !== pinballMultipliers.length - 1 ||
         data.path.reduce((sum, step) => sum + step, 0) !== data.slot ||
-        pinballMultipliers[data.slot] !== data.multiplier ||
-        (data.multipliers && data.multipliers.some((value, index) => value !== pinballMultipliers[index]))) {
+        pinballMultipliers[data.slot] !== data.multiplier) {
       ui.balance.textContent = formatChips(data.balance);
       await launch;
       pinballBall.setAttribute("cx", 300);
@@ -143,7 +158,7 @@ pinballForm.addEventListener("submit", async event => {
     pinballSlots.children[data.slot].classList.add("is-hit");
     document.querySelector("#pinball-balance").textContent = formatChips(data.balance);
     ui.balance.textContent = formatChips(data.balance);
-    pinballMessage.textContent = `${pinballMultiplierLabel(data.multiplier)} · ${formatChips(data.payout)} Chips ausgezahlt (${data.netResult >= 0 ? "+" : ""}${formatChips(data.netResult)} Chips).`;
+    pinballMessage.textContent = `${pinballMultiplierLabel(data.multiplier)} · ${formatChips(data.payout)} Chips ausgezahlt (${data.netResult >= 0 ? "+" : ""}${formatChips(data.netResult)} Chips).${pinballMultipliers.length === 13 ? " Der Server verwendet noch die alte Bahn. Bitte PythonAnywhere aktualisieren." : ""}`;
   } catch (error) {
     await launch;
     pinballBall.setAttribute("cx", 300);
