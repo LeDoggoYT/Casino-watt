@@ -2,9 +2,10 @@
 
 const pokerUi = {
   entry: document.querySelector("#poker-entry"), table: document.querySelector("#poker-table"),
-  message: document.querySelector("#poker-message"), create: document.querySelector("#poker-create"),
-  join: document.querySelector("#poker-join-form"), codeInput: document.querySelector("#poker-code"),
-  code: document.querySelector("#poker-lobby-code"), players: document.querySelector("#poker-players"),
+  message: document.querySelector("#poker-message"), create: document.querySelector("#poker-create-form"),
+  nameInput: document.querySelector("#poker-name"), refresh: document.querySelector("#poker-refresh"),
+  list: document.querySelector("#poker-lobby-list"),
+  name: document.querySelector("#poker-lobby-name"), players: document.querySelector("#poker-players"),
   leave: document.querySelector("#poker-leave"), start: document.querySelector("#poker-start"),
   check: document.querySelector("#poker-check"), fold: document.querySelector("#poker-fold"),
   hand: document.querySelector("#poker-hand"), street: document.querySelector("#poker-street"),
@@ -31,7 +32,7 @@ function renderPoker(lobby) {
   pokerUi.entry.hidden = Boolean(lobby);
   pokerUi.table.hidden = !lobby;
   if (!lobby) return;
-  pokerUi.code.textContent = lobby.code;
+  pokerUi.name.textContent = lobby.name;
   pokerUi.players.textContent = `Spieler: ${lobby.players.map(player => player.username).join(" · ")}${lobby.players.length < 2 ? " · Warte auf Mitspieler …" : ""}`;
   pokerUi.hand.hidden = !lobby.hand;
   pokerUi.start.hidden = lobby.hostId !== lobby.meId || lobby.status === "playing";
@@ -44,7 +45,7 @@ function renderPoker(lobby) {
   pokerUi.fold.disabled = pokerBusy || checked;
   pokerUi.check.textContent = checked ? "Warte auf Mitspieler …" : "Schieben";
   if (!lobby.hand) {
-    pokerUi.message.textContent = lobby.players.length < 2 ? "Teile den Lobby-Code mit einem Freund." : "Beide Spieler sind bereit. Der Host kann starten.";
+    pokerUi.message.textContent = lobby.players.length < 2 ? "Deine Lobby ist offen. Andere Spieler können sie nach Namen auswählen." : "Beide Spieler sind bereit. Der Host kann starten.";
     return;
   }
   pokerUi.street.textContent = {preflop:"Startkarten",flop:"Flop",turn:"Turn",river:"River"}[lobby.hand.street];
@@ -70,11 +71,40 @@ function renderPoker(lobby) {
   if (typeof updateControls === "function") updateControls();
 }
 
+function renderPokerLobbies(lobbies) {
+  pokerUi.list.replaceChildren();
+  if (!lobbies.length) {
+    pokerUi.list.textContent = "Gerade ist keine Lobby offen. Erstelle deine eigene!";
+    return;
+  }
+  for (const lobby of lobbies) {
+    const row = document.createElement("div");
+    row.className = "poker-lobby-row";
+    const label = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = lobby.name;
+    const detail = document.createElement("small");
+    detail.textContent = `Host: ${lobby.host} · ${lobby.players}/2 Spieler`;
+    label.append(title, detail);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Beitreten";
+    button.addEventListener("click", () => pokerRequest("join", {name: lobby.name}));
+    row.append(label, button);
+    pokerUi.list.append(row);
+  }
+}
+
 async function loadPoker() {
   if (!state.token || state.activeView !== "poker" || pokerBusy || document.hidden) return;
   try {
     const data = await api("/api/poker/current");
-    if (state.activeView === "poker") renderPoker(data.lobby);
+    if (state.activeView !== "poker" || pokerBusy) return;
+    renderPoker(data.lobby);
+    if (!data.lobby) {
+      const available = await api("/api/poker/lobbies");
+      if (state.activeView === "poker" && !pokerBusy && !pokerLobby) renderPokerLobbies(available.lobbies);
+    }
   } catch (error) {
     pokerUi.message.textContent = error.message;
   }
@@ -105,14 +135,15 @@ async function pokerRequest(path, payload = {}) {
   } finally {
     pokerBusy = false;
     if (pokerLobby) renderPoker(pokerLobby);
+    else if (path === "leave") loadPoker();
   }
 }
 
-pokerUi.create.addEventListener("click", () => pokerRequest("create"));
-pokerUi.join.addEventListener("submit", event => {
+pokerUi.create.addEventListener("submit", event => {
   event.preventDefault();
-  pokerRequest("join", {code:pokerUi.codeInput.value.trim()});
+  pokerRequest("create", {name:pokerUi.nameInput.value.trim()});
 });
+pokerUi.refresh.addEventListener("click", loadPoker);
 pokerUi.leave.addEventListener("click", () => pokerRequest("leave"));
 pokerUi.start.addEventListener("click", () => pokerRequest("start"));
 pokerUi.check.addEventListener("click", () => pokerRequest("action", {action:"check"}));

@@ -28,11 +28,15 @@ class WattCasinoApiTests(unittest.TestCase):
     def test_poker_lobby_private_cards_and_showdown(self):
         tokens = [self.request("POST", "/api/auth/register", {"username": name, "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
                   for name in ("PokerHost", "PokerGuest")]
-        created = self.request("POST", "/api/poker/create", {}, tokens[0])
+        created = self.request("POST", "/api/poker/create", {"name": "Freunde am Tisch"}, tokens[0])
         self.assertEqual(created.status_code, 201)
-        code = created.get_json()["data"]["lobby"]["code"]
+        self.assertEqual(created.get_json()["data"]["lobby"]["name"], "Freunde am Tisch")
+        self.assertEqual(self.request("GET", "/api/poker/lobbies", token=tokens[1]).get_json()["data"]["lobbies"][0]["name"], "Freunde am Tisch")
+        self.assertEqual(self.request("POST", "/api/poker/create", {"name": "freunde am tisch"}, tokens[1]).status_code, 409)
+        self.assertEqual(self.request("POST", "/api/poker/join", {"name": "Fehlende Lobby"}, tokens[1]).status_code, 404)
         self.assertEqual(self.request("POST", "/api/poker/start", {}, tokens[0]).status_code, 409)
-        self.assertEqual(self.request("POST", "/api/poker/join", {"code": code.lower()}, tokens[1]).status_code, 200)
+        self.assertEqual(self.request("POST", "/api/poker/join", {"name": "freunde am tisch"}, tokens[1]).status_code, 200)
+        self.assertEqual(self.request("GET", "/api/poker/lobbies", token=tokens[0]).get_json()["data"]["lobbies"], [])
         self.assertEqual(self.request("POST", "/api/poker/start", {}, tokens[1]).status_code, 403)
         started = self.request("POST", "/api/poker/start", {}, tokens[0]).get_json()["data"]["lobby"]
         guest = self.request("GET", "/api/poker/current", token=tokens[1]).get_json()["data"]["lobby"]

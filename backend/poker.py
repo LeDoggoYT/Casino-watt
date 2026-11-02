@@ -23,6 +23,15 @@ ANTE = 10
 STREETS = ("preflop", "flop", "turn", "river")
 
 
+def lobby_name(value):
+    if not isinstance(value, str):
+        return None
+    name = " ".join(value.split())
+    if not 3 <= len(name) <= 30 or not name.isprintable():
+        return None
+    return name
+
+
 def score_five(cards):
     values = sorted((RANKS.index(card[0]) + 2 for card in cards), reverse=True)
     counts = {value: values.count(value) for value in set(values)}
@@ -85,7 +94,7 @@ def install(app, context):
             WHERE m.lobby_code=? ORDER BY m.joined_at,m.user_id""", (code,))]
         hand = state.get("hand")
         result = {
-            "code": code, "hostId": row["host_id"], "meId": user_id,
+            "name": state.get("name", f"Poker-Lobby {code}"), "hostId": row["host_id"], "meId": user_id,
             "players": players, "status": state["status"], "ante": ANTE,
             "balance": db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"],
         }
@@ -109,13 +118,36 @@ def install(app, context):
         member = membership(db, g.auth["user_id"])
         return ok({"lobby": public(db, member["lobby_code"], g.auth["user_id"]) if member else None})
 
+    @app.get("/api/poker/lobbies")
+    @auth
+    def poker_lobbies():
+        db = db_for()
+        result = []
+        for row in db.execute("""SELECT l.code,l.state_json,u.username AS host,
+            COUNT(m.user_id) AS players FROM poker_lobbies l
+            JOIN users u ON u.id=l.host_id
+            LEFT JOIN poker_members m ON m.lobby_code=l.code
+            WHERE json_extract(l.state_json,'$.status')='waiting'
+            GROUP BY l.code HAVING COUNT(m.user_id)<2
+            ORDER BY l.created_at DESC LIMIT 100"""):
+            state = json.loads(row["state_json"])
+            result.append({"name": state.get("name", f"Poker-Lobby {row['code']}"),
+                           "host": row["host"], "players": row["players"]})
+        return ok({"lobbies": result})
+
     @app.post("/api/poker/create")
     @auth
     def poker_create():
+        name = lobby_name(body().get("name"))
+        if not name:
+            raise ApiError(400, "Der Lobby-Name muss 3–30 sichtbare Zeichen haben.")
         with transaction() as db:
             uid = g.auth["user_id"]
             if membership(db, uid):
                 raise ApiError(409, "Du bist bereits in einer Poker-Lobby.")
+            if any(json.loads(row["state_json"]).get("name", f"Poker-Lobby {row['code']}").casefold() == name.casefold()
+                   for row in db.execute("SELECT code,state_json FROM poker_lobbies")):
+                raise ApiError(409, "Dieser Lobby-Name ist bereits vergeben.")
             alphabet = string.ascii_uppercase + string.digits
             for _ in range(8):
                 code = "".join(secrets.choice(alphabet) for _ in range(6))
@@ -124,7 +156,7 @@ def install(app, context):
             else:
                 raise ApiError(503, "Lobby-Code konnte nicht erstellt werden.")
             now = utc_now()
-            db.execute("INSERT INTO poker_lobbies VALUES (?,?,?,?)", (code, uid, json.dumps({"status": "waiting"}), now))
+            db.execute("INSERT INTO poker_lobbies VALUES (?,?,?,?)", (code, uid, json.dumps({"status": "waiting", "name": name}), now))
             db.execute("INSERT INTO poker_members VALUES (?,?,?)", (uid, code, now))
             result = public(db, code, uid)
         return ok({"lobby": result}, "Lobby erstellt.", 201)
@@ -132,14 +164,18 @@ def install(app, context):
     @app.post("/api/poker/join")
     @auth
     def poker_join():
-        code = body().get("code", "")
-        if not isinstance(code, str) or len(code.strip()) != 6 or not code.strip().isalnum():
-            raise ApiError(400, "Bitte gib einen sechsstelligen Lobby-Code ein.")
-        code = code.strip().upper()
+        name = lobby_name(body().get("name"))
+        if not name:
+            raise ApiError(400, "Bitte wähle eine Lobby aus der Liste.")
         with transaction() as db:
             uid = g.auth["user_id"]
             if membership(db, uid):
                 raise ApiError(409, "Du bist bereits in einer Poker-Lobby.")
+            match = next((row for row in db.execute("SELECT code,state_json FROM poker_lobbies")
+                          if json.loads(row["state_json"]).get("name", f"Poker-Lobby {row['code']}").casefold() == name.casefold()), None)
+            if not match:
+                raise ApiError(404, "Diese Lobby ist nicht mehr verfügbar.")
+            code = match["code"]
             _, state = lobby(db, code)
             if state["status"] != "waiting":
                 raise ApiError(409, "Diese Lobby hat bereits begonnen.")
@@ -166,7 +202,7 @@ def install(app, context):
             if other:
                 if row["host_id"] == uid:
                     db.execute("UPDATE poker_lobbies SET host_id=? WHERE code=?", (other["user_id"], code))
-                save(db, code, {"status": "waiting"})
+                save(db, code, {"status": "waiting", "name": state.get("name", f"Poker-Lobby {code}")})
             else:
                 db.execute("DELETE FROM poker_lobbies WHERE code=?", (code,))
         return ok(message="Lobby verlassen.")
@@ -209,7 +245,7 @@ def install(app, context):
                 db.execute("UPDATE balances SET amount=amount-?,updated_at=? WHERE user_id=?", (ANTE, utc_now(), pid))
             deck = [rank + suit for rank in RANKS for suit in SUITS]
             secrets.SystemRandom().shuffle(deck)
-            state = {"status": "playing", "hand": {
+            state = {"status": "playing", "name": state.get("name", f"Poker-Lobby {code}"), "hand": {
                 "street": "preflop", "board": [deck.pop() for _ in range(5)],
                 "cards": {str(pid): [deck.pop(), deck.pop()] for pid in players},
                 "checked": [], "pot": 2 * ANTE,
