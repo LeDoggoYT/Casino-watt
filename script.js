@@ -572,7 +572,7 @@ function addBet(value) {
 
 function openCustomBet(game = "game") {
   state.customBetGame = game;
-  const available = state.balance - (game === "crash" ? crashSelectedBet : game === "pinball" ? pinballSelectedBet : game === "chicken" ? state.chickenBet : state.selectedBet);
+  const available = state.balance - (game === "slots" ? slotsBet : game === "crash" ? crashSelectedBet : game === "pinball" ? pinballSelectedBet : game === "chicken" ? state.chickenBet : state.selectedBet);
   if (available < 5) return;
   ui.customBetInput.max = String(available);
   ui.customBetInput.value = String(Math.min(available, 100));
@@ -584,7 +584,7 @@ function openCustomBet(game = "game") {
 
 function submitCustomBet(event) {
   event.preventDefault();
-  const available = state.balance - (state.customBetGame === "crash" ? crashSelectedBet : state.customBetGame === "pinball" ? pinballSelectedBet : state.customBetGame === "chicken" ? state.chickenBet : state.selectedBet);
+  const available = state.balance - (state.customBetGame === "slots" ? slotsBet : state.customBetGame === "crash" ? crashSelectedBet : state.customBetGame === "pinball" ? pinballSelectedBet : state.customBetGame === "chicken" ? state.chickenBet : state.selectedBet);
   const amount = Number(ui.customBetInput.value.replace?.(",", ".") ?? ui.customBetInput.value);
   if (!Number.isFinite(amount) || amount < 5 || amount > available || amount * 2 !== Math.round(amount * 2)) {
     ui.customBetError.textContent = `Bitte einen Betrag zwischen 5 und ${formatChips(available)} in 0,5er-Schritten eingeben.`;
@@ -592,6 +592,7 @@ function submitCustomBet(event) {
   }
   ui.customBetDialog.close();
   if (state.customBetGame === "crash") addCrashBet(String(amount));
+  else if (state.customBetGame === "slots") addSlotsBet(String(amount));
   else if (state.customBetGame === "pinball") addPinballBet(String(amount));
   else if (state.customBetGame === "chicken") addChickenBet(String(amount));
   else addBet(String(amount));
@@ -637,6 +638,7 @@ function setView(view) {
   else stopLeaderboardPolling();
   if (view === "upgrades") loadUpgrades();
   if (view === "chicken") loadChicken();
+  if (view === "slots") updateSlotsControls();
   if (view === "pinball") updatePinballControls();
   if (view === "crash") startCrash();
   if (view === "loot") loadLoot();

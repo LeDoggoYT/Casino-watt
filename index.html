@@ -6,7 +6,7 @@
   <meta name="description" content="Watt Casino – kostenloses Blackjack mit virtuellem Spielgeld.">
   <title>Wigipeadia</title>
   <link rel="icon" href="https://www.wikipedia.org/static/favicon/wikipedia.ico" sizes="any">
-  <link rel="stylesheet" href="style.css?v=market-1">
+  <link rel="stylesheet" href="style.css?v=slots-1">
 </head>
 <body>
   <aside id="win-notifications" class="win-notifications" aria-label="Große Gewinne" aria-live="polite" aria-relevant="additions"></aside>
@@ -127,7 +127,7 @@
           <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--pinball" aria-hidden="true">◎</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Pinball</h3><p>Lass die Kugel fallen und triff dein Gewinnfeld.</p><button class="game-tile-button" type="button" data-open-view="pinball">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
           <article class="game-tile"><div class="game-tile-art game-tile-art--hilo" aria-hidden="true">↑↓</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Hi-Lo</h3><p>Ist die nächste Karte höher oder tiefer?</p></div></article>
           <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--chicken" aria-hidden="true">🐔</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Chicken</h3><p>Gehe weiter oder sichere deinen Gewinn.</p><button class="game-tile-button" type="button" data-open-view="chicken">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
-          <article class="game-tile"><div class="game-tile-art game-tile-art--slots" aria-hidden="true">✦</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Slots</h3><p>Dreh die Walzen und entdecke Neues.</p></div></article>
+          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--slots" aria-hidden="true">✦</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Slots</h3><p>Drei Walzen, eine Gewinnlinie.</p><button class="game-tile-button" type="button" data-open-view="slots">Spiel öffnen →</button></div></article>
           <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--loot" aria-hidden="true">◇</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Loot Boxen</h3><p>Wähle eine Kiste und entdecke deinen Gewinn.</p><button class="game-tile-button" type="button" data-open-view="loot">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
           <article class="game-tile"><div class="game-tile-art game-tile-art--mines" aria-hidden="true">✣</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Mines</h3><p>Decke Felder auf und meide die Minen.</p></div></article>
         </div>
@@ -182,6 +182,12 @@
         </div>
         <p class="crash-stage-note">Alle spielen dieselbe Runde. Der Server bestätigt deinen Ausstieg; bei Verbindungsabbruch läuft die Runde weiter.</p>
       </section>
+    </main>
+    <main id="slots-view" class="app-view pinball-view" hidden>
+      <header class="pinball-header"><div><span class="section-kicker">Watt Casino</span><h1>Slots</h1></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="slots-balance">0</span> <small>Chips</small></strong></div></header>
+      <section class="pinball-board slot-machine"><span class="section-kicker">Eine Gewinnlinie</span><div class="slot-windows" aria-hidden="true"><div class="slot-reel">🍒</div><div class="slot-reel">🍋</div><div class="slot-reel">🔔</div></div><p id="slots-status" role="status">Wähle deinen Einsatz und drehe die Walzen.</p>
+      <details><summary>Gewinntabelle</summary><p>Zwei gleiche Symbole geben den Einsatz zurück. Drei gleiche zahlen je nach Symbol den angegebenen Faktor inklusive Einsatz. Alle fünf Symbole sind gleich wahrscheinlich.</p><p>🍒 5× · 🍋 8× · 🔔 12× · 💎 16× · 7️⃣ 20×</p></details></section>
+      <form id="slots-form" class="pinball-controls chicken-controls"><div class="control-heading"><h2>Einsatz wählen</h2><button id="slots-clear" class="text-button" type="button">Einsatz löschen</button></div><div id="slots-chips" class="chip-row" aria-label="Chips für Slots auswählen"></div><div class="chicken-amount"><span>Aktueller Einsatz</span><strong><span id="slots-bet">0</span> <small>Chips</small></strong></div><button id="slots-spin" class="crash-primary" type="submit" disabled>Walzen drehen</button></form>
     </main>
     <main id="pinball-view" class="app-view pinball-view" hidden>
       <header class="pinball-header"><div><span class="section-kicker">Watt Casino</span><h1>Pinball</h1></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="pinball-balance">0</span> <small>Chips</small></strong></div></header>
@@ -410,8 +416,9 @@
     </form>
   </dialog>
 
-  <script src="script.js?v=market-1" defer></script>
-  <script src="pinball.js?v=pinball-alignment-3" defer></script>
+  <script src="script.js?v=slots-1" defer></script>
+  <script src="slots.js?v=1" defer></script>
+  <script src="pinball.js?v=pinball-fix-4" defer></script>
   <script src="crash.js?v=1" defer></script>
   <script src="loot.js?v=4" defer></script>
   <script src="market.js?v=1" defer></script>

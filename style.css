@@ -1255,7 +1255,7 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); ou
 .chicken-lane:nth-child(5n + 3) { --car-color: #de6c62; --duration: 3.4s; --delay: -2s; }
 .chicken-lane:nth-child(5n + 4) { --car-color: #338f7c; --duration: 4.2s; --delay: -.3s; }
 .chicken-lane:nth-child(5n) { --car-color: #eabc59; --duration: 3.6s; --delay: -2.8s; }
-.traffic-car { position: absolute; top: -100px; left: 50%; display: block; width: 38px; height: 76px; margin-left: -19px; border: 2px solid #ffffff36; border-radius: 11px 11px 9px 9px; background: var(--car-color, #c76f5e); box-shadow: -5px 11px 0 #0003, -4px 14px 0 -1px #131d1c, 4px 14px 0 -1px #131d1c, -4px -14px 0 -1px #131d1c, 4px -14px 0 -1px #131d1c; animation: chicken-traffic var(--duration, 4s) linear infinite; animation-delay: var(--delay, 0s); }
+.traffic-car { position: absolute; top: -100px; left: 50%; display: block; width: 38px; height: 76px; margin-left: -19px; border: 2px solid #ffffff36; border-radius: 11px 11px 9px 9px; background: var(--car-color, #c76f5e); box-shadow: none; animation: chicken-traffic var(--duration, 4s) linear infinite; animation-delay: var(--delay, 0s); }
 .traffic-car b { position: absolute; inset: 17px 4px 14px; border-top: 11px solid #6ac3dc; border-bottom: 8px solid #397fa0; border-radius: 6px; background: #fff2; }
 .traffic-car::before, .traffic-car::after { content: ""; position: absolute; left: 3px; width: 8px; height: 4px; background: #ffe5a4; bottom: 3px; box-shadow: 19px 0 #ffe5a4; border-radius: 2px; }
 .traffic-car::after { top: 3px; bottom: auto; background: #912e30; box-shadow: 19px 0 #912e30; }
@@ -1515,3 +1515,10 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); ou
 .market-price-input { width: 100%; padding: 11px; border: 1px solid var(--line); border-radius: 8px; background: #101b16; color: var(--cream); font: inherit; }
 #market-message { min-height: 24px; color: var(--gold-light); }
 @media(max-width: 700px) { .market-summary { align-items: flex-start; flex-direction: column; gap: 12px; } }
+
+.slot-machine { padding: clamp(18px,4vw,42px); text-align:center; }
+.slot-windows { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:clamp(5px,1vw,12px); margin:24px 0; }
+.slot-reel { --cell:clamp(65px,12vw,132px); height:var(--cell); overflow:hidden; border:1px solid var(--gold); border-radius:12px; background:#f7edda; color:#222; font-size:clamp(34px,6vw,72px); line-height:var(--cell); }
+.slot-reel span { display:block; height:var(--cell); }
+.slot-machine details { margin-top:24px; color:var(--muted); font-size:14px; }
+.slot-machine summary { cursor:pointer; color:var(--gold-light); }
