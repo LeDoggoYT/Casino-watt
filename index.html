@@ -6,7 +6,7 @@
   <meta name="description" content="Watt Casino – kostenloses Blackjack mit virtuellem Spielgeld.">
   <title>Wigipeadia</title>
   <link rel="icon" href="https://www.wikipedia.org/static/favicon/wikipedia.ico" sizes="any">
-  <link rel="stylesheet" href="style.css?v=poker-2">
+  <link rel="stylesheet" href="style.css?v=poker-4">
 </head>
 <body>
   <aside id="win-notifications" class="win-notifications" aria-label="Große Gewinne" aria-live="polite" aria-relevant="additions"></aside>
@@ -244,18 +244,36 @@
 
     <main id="poker-view" class="app-view poker-view" hidden>
       <section class="poker-panel" aria-labelledby="poker-title">
-        <header class="section-header"><div><span class="section-kicker">Nur online · Texas Hold'em</span><h1 id="poker-title">Poker</h1><p>Spiele mit einer zweiten Person um einen Pot aus virtuellen Chips.</p></div></header>
-        <p id="poker-message" class="poker-message" role="status" aria-live="polite"></p>
-        <div id="poker-entry" class="poker-entry">
-          <form id="poker-create-form" class="poker-box"><h2>Lobby erstellen</h2><label for="poker-name">Name deiner Lobby</label><input id="poker-name" name="name" maxlength="30" minlength="3" autocomplete="off" placeholder="Mein Pokertisch" required><button class="game-tile-button" type="submit">Lobby erstellen</button></form>
-          <div class="poker-box"><div class="poker-list-heading"><h2>Offene Lobbys</h2><button id="poker-refresh" type="button">Aktualisieren</button></div><div id="poker-lobby-list" class="poker-lobby-list" aria-live="polite"></div></div>
-        </div>
-        <div id="poker-table" hidden>
-          <div class="poker-table-heading"><div><span>Lobby</span><strong id="poker-lobby-name"></strong></div><button id="poker-leave" type="button">Lobby verlassen</button></div>
-          <p id="poker-players" class="poker-players"></p>
-          <div id="poker-hand" hidden><div class="poker-board"><span id="poker-street"></span><div id="poker-board-cards" class="poker-cards"></div></div><div class="poker-pot">Pot: <strong id="poker-pot"></strong> Chips</div><div><span>Deine Karten</span><div id="poker-my-cards" class="poker-cards"></div></div><div id="poker-opponent" class="poker-opponent"></div></div>
-          <div class="poker-actions"><button id="poker-start" class="game-tile-button" type="button">Runde starten · 10 Chips</button><button id="poker-check" class="game-tile-button" type="button">Schieben</button><button id="poker-fold" type="button">Passen</button></div>
-          <p class="poker-rules">Zwei Spieler · 10 Chips Einsatz pro Person · nach jedem gemeinsamen Schieben werden weitere Gemeinschaftskarten aufgedeckt. Die beste Fünf-Karten-Hand gewinnt.</p>
+        <header class="section-header poker-header"><div><span class="section-kicker">Nur online · Texas Hold'em</span><h1 id="poker-title">Poker</h1><p>Zwei Spieler, ein Pot und deine Entscheidung bei jeder Karte.</p></div><div class="poker-wallet">Dein Guthaben <strong id="poker-balance">–</strong> Chips</div></header>
+        <div class="poker-layout">
+          <aside class="poker-rankings" aria-label="Poker-Hand-Rangfolgen"><img src="assets/poker/hand-rankings.png" alt="Poker-Hand-Rangfolgen von Royal Flush bis High Card" loading="lazy"><p>Die beste Hand aus deinen zwei Karten und den Gemeinschaftskarten gewinnt.</p></aside>
+          <div class="poker-content">
+            <p id="poker-message" class="poker-message" role="status" aria-live="polite">Verbinde mit dem Poker-Server …</p>
+            <div id="poker-entry" class="poker-entry">
+              <form id="poker-create-form" class="poker-box"><h2>Lobby erstellen</h2><label for="poker-name">Name deiner Lobby</label><input id="poker-name" name="name" maxlength="30" minlength="3" autocomplete="off" placeholder="Mein Pokertisch" required><button class="game-tile-button" type="submit">Lobby erstellen</button></form>
+              <div class="poker-box"><div class="poker-list-heading"><h2>Offene Lobbys</h2><button id="poker-refresh" type="button">Aktualisieren</button></div><div id="poker-lobby-list" class="poker-lobby-list" aria-live="polite"></div></div>
+            </div>
+            <div id="poker-table" hidden>
+              <div class="poker-table-heading"><div><span>Lobby</span><strong id="poker-lobby-name"></strong></div><button id="poker-leave" type="button">Verlassen</button></div>
+              <p id="poker-players" class="poker-players"></p>
+              <div id="poker-hand" hidden>
+                <div class="poker-felt">
+                  <div class="poker-seat poker-seat--opponent"><span class="poker-seat-label">Mitspieler</span><div id="poker-opponent" class="poker-cards"></div></div>
+                  <div class="poker-center"><span id="poker-street" class="poker-street"></span><div id="poker-board-cards" class="poker-cards poker-community"></div><div class="poker-pot">POT <strong id="poker-pot"></strong> <small>Chips</small></div></div>
+                  <div class="poker-seat poker-seat--mine"><span class="poker-seat-label">Deine Karten</span><div id="poker-my-cards" class="poker-cards"></div></div>
+                </div>
+                <div class="poker-round-info"><span id="poker-turn"></span><span id="poker-wager"></span></div>
+              </div>
+              <div class="poker-actions">
+                <button id="poker-start" class="game-tile-button" type="button">Runde starten · 10 Chips</button>
+                <button id="poker-draw" class="game-tile-button" type="button">Karte ziehen</button>
+                <button id="poker-call" class="game-tile-button" type="button">Mitgehen</button>
+                <form id="poker-raise-form" class="poker-raise-form"><label for="poker-raise-amount">Erhöhen um<input id="poker-raise-amount" type="number" min="5" step="0.5" value="10" inputmode="decimal" required></label><button class="game-tile-button" type="submit">Erhöhen</button><small id="poker-raise-total"></small></form>
+                <button id="poker-fold" type="button">Passen</button>
+              </div>
+              <p class="poker-rules">Beide zahlen zu Beginn 10 Chips. Mit „Karte ziehen“ wartest du auf die nächste Gemeinschaftskarte. Nach einer Erhöhung muss der andere Spieler mitgehen, selbst erhöhen oder passen. Am Ende gewinnt die beste Fünf-Karten-Hand.</p>
+            </div>
+          </div>
         </div>
       </section>
     </main>
@@ -436,7 +454,7 @@
   </dialog>
 
   <script src="script.js?v=poker-1" defer></script>
-  <script src="poker.js?v=2" defer></script>
+  <script src="poker.js?v=4" defer></script>
   <script src="slots.js?v=1" defer></script>
   <script src="pinball.js?v=pinball-fix-4" defer></script>
   <script src="crash.js?v=1" defer></script>

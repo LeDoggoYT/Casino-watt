@@ -1,6 +1,7 @@
 """Two-player, server-authoritative Texas Hold'em lobbies."""
 import itertools
 import json
+import math
 import secrets
 import string
 
@@ -21,6 +22,8 @@ RANKS = "23456789TJQKA"
 SUITS = "shdc"
 ANTE = 10
 STREETS = ("preflop", "flop", "turn", "river")
+HAND_NAMES = ("Höchste Karte", "Ein Paar", "Zwei Paare", "Drilling", "Straße", "Flush",
+              "Full House", "Vierling", "Straight Flush")
 
 
 def lobby_name(value):
@@ -66,6 +69,27 @@ def best_hand(cards):
     return max(score_five(hand) for hand in itertools.combinations(cards, 5))
 
 
+def ensure_betting(hand):
+    """Keep unfinished hands created by the earlier check-only version playable."""
+    ids = list(hand["cards"])
+    hand.setdefault("invested", {pid: ANTE for pid in ids})
+    hand.setdefault("contributions", {pid: 0 for pid in ids})
+    hand.setdefault("currentBet", 0)
+    hand.setdefault("acted", hand.get("checked", []))
+    hand.setdefault("turn", next((int(pid) for pid in ids if int(pid) not in hand["acted"]), int(ids[0])))
+
+
+def betting_limits(db, hand, user_id):
+    ids = list(hand["cards"])
+    mine, other = str(user_id), next(pid for pid in ids if pid != str(user_id))
+    to_call = round((hand["currentBet"] - hand["contributions"][mine]) * 2) / 2
+    balances = {pid: db.execute("SELECT amount FROM balances WHERE user_id=?", (int(pid),)).fetchone()["amount"]
+                for pid in ids}
+    max_total = min(hand["contributions"][pid] + balances[pid] for pid in ids)
+    max_raise = max(0, round((max_total - hand["currentBet"]) * 2) / 2)
+    return to_call, max_raise, balances[mine], int(other)
+
+
 def install(app, context):
     db_for = context["get_db"]
     transaction = context["transaction"]
@@ -74,6 +98,8 @@ def install(app, context):
     ok = context["ok"]
     body = context["body"]
     utc_now = context["utc_now"]
+    register_action = context["register_action"]
+    record_big_win = context["record_big_win"]
 
     def membership(db, user_id):
         return db.execute("SELECT lobby_code FROM poker_members WHERE user_id=?", (user_id,)).fetchone()
@@ -99,15 +125,19 @@ def install(app, context):
             "balance": db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"],
         }
         if hand:
+            ensure_betting(hand)
             visible = 0 if hand["street"] == "preflop" else 3 if hand["street"] == "flop" else 4 if hand["street"] == "turn" else 5
             if state["status"] == "finished":
                 visible = 5
+            to_call, max_raise, _, _ = betting_limits(db, hand, user_id)
             result["hand"] = {
                 "street": hand["street"], "board": hand["board"][:visible],
                 "cards": hand["cards"].get(str(user_id), []), "pot": hand["pot"],
-                "checked": hand["checked"], "result": hand.get("result"),
+                "turnId": hand["turn"], "toCall": to_call, "maxRaise": max_raise,
+                "currentBet": hand["currentBet"], "invested": hand["invested"],
+                "result": hand.get("result"),
                 "opponentCards": {key: value for key, value in hand["cards"].items() if key != str(user_id)}
-                if state["status"] == "finished" else {},
+                if state["status"] == "finished" and hand.get("result", {}).get("reveal") else {},
             }
         return result
 
@@ -207,14 +237,25 @@ def install(app, context):
                 db.execute("DELETE FROM poker_lobbies WHERE code=?", (code,))
         return ok(message="Lobby verlassen.")
 
-    def finish(db, code, state, winner, message):
+    def finish(db, code, state, winner, message, reveal=False):
         hand = state["hand"]
+        ensure_betting(hand)
         if winner is None:
-            for pid in hand["cards"]:
-                db.execute("UPDATE balances SET amount=amount+?,updated_at=? WHERE user_id=?", (ANTE, utc_now(), int(pid)))
+            for pid, amount in hand["invested"].items():
+                db.execute("UPDATE balances SET amount=amount+?,updated_at=? WHERE user_id=?", (amount, utc_now(), int(pid)))
         else:
             db.execute("UPDATE balances SET amount=amount+?,updated_at=? WHERE user_id=?", (hand["pot"], utc_now(), winner))
-        hand["result"] = {"winnerId": winner, "message": message}
+        for pid, invested in hand["invested"].items():
+            player_id = int(pid)
+            payout = invested if winner is None else hand["pot"] if player_id == winner else 0
+            net = payout - invested
+            balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (player_id,)).fetchone()["amount"]
+            db.execute("""UPDATE player_stats SET rounds_played=rounds_played+1,wins=wins+?,losses=losses+?,pushes=pushes+?,
+                highest_balance=MAX(highest_balance,?),biggest_win=MAX(biggest_win,?),
+                total_won=total_won+?,total_lost=total_lost+? WHERE user_id=?""",
+                (int(net > 0), int(net < 0), int(net == 0), balance, max(0, net), max(0, net), max(0, -net), player_id))
+            record_big_win(db, player_id, "Poker", net, invested)
+        hand["result"] = {"winnerId": winner, "message": message, "reveal": reveal}
         state["status"] = "finished"
         save(db, code, state)
 
@@ -239,7 +280,9 @@ def install(app, context):
                 balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (pid,)).fetchone()["amount"]
                 if balance < ANTE:
                     raise ApiError(409, "Beide Spieler brauchen mindestens 10 Chips.")
-                if db.execute("SELECT 1 FROM active_rounds WHERE user_id=?", (pid,)).fetchone() or db.execute("SELECT 1 FROM active_chicken_rounds WHERE user_id=?", (pid,)).fetchone():
+                if (db.execute("SELECT 1 FROM active_rounds WHERE user_id=?", (pid,)).fetchone()
+                        or db.execute("SELECT 1 FROM active_chicken_rounds WHERE user_id=?", (pid,)).fetchone()
+                        or db.execute("SELECT 1 FROM crash_bets WHERE user_id=? AND payout IS NULL", (pid,)).fetchone()):
                     raise ApiError(409, "Ein Spieler muss zuerst seine laufende Runde beenden.")
             for pid in players:
                 db.execute("UPDATE balances SET amount=amount-?,updated_at=? WHERE user_id=?", (ANTE, utc_now(), pid))
@@ -248,7 +291,9 @@ def install(app, context):
             state = {"status": "playing", "name": state.get("name", f"Poker-Lobby {code}"), "hand": {
                 "street": "preflop", "board": [deck.pop() for _ in range(5)],
                 "cards": {str(pid): [deck.pop(), deck.pop()] for pid in players},
-                "checked": [], "pot": 2 * ANTE,
+                "turn": players[0], "acted": [], "currentBet": 0,
+                "contributions": {str(pid): 0 for pid in players},
+                "invested": {str(pid): ANTE for pid in players}, "pot": 2 * ANTE,
             }}
             save(db, code, state)
             result = public(db, code, uid)
@@ -257,8 +302,9 @@ def install(app, context):
     @app.post("/api/poker/action")
     @auth
     def poker_action():
-        action = body().get("action")
-        if action not in ("check", "fold"):
+        payload = body()
+        action = payload.get("action")
+        if action not in ("draw", "call", "raise", "fold"):
             raise ApiError(400, "Ungültige Poker-Aktion.")
         with transaction() as db:
             uid = g.auth["user_id"]
@@ -272,24 +318,57 @@ def install(app, context):
             hand = state["hand"]
             if str(uid) not in hand["cards"]:
                 raise ApiError(403, "Du spielst in dieser Runde nicht mit.")
-            if uid in hand["checked"]:
-                raise ApiError(409, "Du hast in dieser Phase bereits geschoben.")
-            other = next(int(pid) for pid in hand["cards"] if int(pid) != uid)
+            ensure_betting(hand)
+            if hand["turn"] != uid:
+                raise ApiError(409, "Der andere Spieler ist am Zug.")
+            to_call, max_raise, balance, other = betting_limits(db, hand, uid)
+            if action == "draw" and to_call:
+                raise ApiError(409, "Gehe zuerst mit oder passe.")
+            if action == "call" and not to_call:
+                raise ApiError(409, "Es gibt keinen Einsatz zum Mitgehen.")
+            amount = 0
+            if action == "raise":
+                try:
+                    amount = float(payload.get("amount"))
+                except (TypeError, ValueError):
+                    amount = 0
+                if not math.isfinite(amount) or amount < 5 or amount * 2 != round(amount * 2):
+                    raise ApiError(400, "Erhöhe um mindestens 5 Chips in 0,5er-Schritten.")
+                if amount > max_raise:
+                    raise ApiError(409, "Die Erhöhung übersteigt die verfügbaren Chips am Tisch.")
+            charge = to_call + amount if action in ("call", "raise") else 0
+            if charge > balance:
+                raise ApiError(409, "Nicht genügend Chips zum Mitgehen.")
+            register_action(uid, payload.get("actionId"), "poker-" + action)
             if action == "fold":
                 finish(db, code, state, other, "Ein Spieler hat gepasst.")
             else:
-                hand["checked"].append(uid)
-                if len(hand["checked"]) == 2:
+                if charge:
+                    db.execute("UPDATE balances SET amount=amount-?,updated_at=? WHERE user_id=?", (charge, utc_now(), uid))
+                    hand["contributions"][str(uid)] += charge
+                    hand["invested"][str(uid)] += charge
+                    hand["pot"] += charge
+                if action == "raise":
+                    hand["currentBet"] += amount
+                    hand["acted"] = [uid]
+                else:
+                    hand["acted"].append(uid)
+                if len(hand["acted"]) == 2:
                     index = STREETS.index(hand["street"])
                     if index == 3:
                         scores = {int(pid): best_hand(cards + hand["board"]) for pid, cards in hand["cards"].items()}
                         winner = max(scores, key=scores.get) if len(set(scores.values())) > 1 else None
-                        finish(db, code, state, winner, "Gleichstand: Einsatz zurück." if winner is None else "Showdown: beste Hand gewinnt den Pot.")
+                        winning_name = "Royal Flush" if winner is not None and scores[winner][:2] == (8, 14) else HAND_NAMES[scores[winner][0]] if winner is not None else ""
+                        finish(db, code, state, winner, "Gleichstand: Alle Einsätze zurück." if winner is None else f"Showdown: {winning_name} gewinnt den Pot.", reveal=True)
                     else:
                         hand["street"] = STREETS[index + 1]
-                        hand["checked"] = []
+                        hand["currentBet"] = 0
+                        hand["contributions"] = {pid: 0 for pid in hand["cards"]}
+                        hand["acted"] = []
+                        hand["turn"] = list(map(int, hand["cards"]))[(index + 1) % 2]
                         save(db, code, state)
                 else:
+                    hand["turn"] = other
                     save(db, code, state)
             result = public(db, code, uid)
         return ok({"lobby": result})

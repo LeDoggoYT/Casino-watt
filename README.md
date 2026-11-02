@@ -24,6 +24,10 @@ Der laufende Spielzustand bleibt absichtlich serverseitig, damit Browser weder K
 
 Damit sinken vor allem die für SQLite teuren Schreibzugriffe sowie die dauerhaften Hintergrundanfragen deutlich; Spielaktionen bleiben serverseitig verbindlich.
 
+## Poker
+
+Poker ist ein Online-Tisch für zwei Spieler. Der Host gibt der Lobby einen Namen; andere Spieler wählen sie aus der Liste offener Lobbys. Beide zahlen zu Beginn 10 virtuelle Chips. Pro Phase können Spieler die nächste Gemeinschaftskarte anfordern, mitgehen, in 0,5-Chip-Schritten um mindestens 5 Chips erhöhen oder passen. Eine Erhöhung ist auf den von beiden Spielern deckbaren Betrag begrenzt. Karten, Zugfolge, Pot, Handrang und Auszahlung werden auf dem Server berechnet. Die Hand-Rangfolgen-Grafik steht links neben dem Tisch.
+
 ## Upgrades und Einsätze
 
 Spieler können im Bereich **Upgrades** Chips in sieben dauerhafte Verbesserungen investieren: Startkapital, Glück, Blackjack-Bonus, Verlustschutz, Serienbonus, Doppel-Profi und Tagesbonus. Käufe, Level, Tagesbonus und alle Auswirkungen auf Auszahlungen werden serverseitig gespeichert und berechnet. Jedes Upgrade besitzt fünf Level; der Preis verdoppelt sich nach jedem Kauf.
