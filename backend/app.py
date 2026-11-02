@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import market
+import poker
 import bcrypt
 from flask import Flask, g, jsonify, request, send_from_directory
 
@@ -219,7 +220,7 @@ CREATE INDEX IF NOT EXISTS idx_admin_audit_target ON admin_audit_log(target_user
 def initialise_database(app: Flask) -> None:
     with app.app_context():
         db = get_db()
-        db.executescript(SCHEMA + market.SCHEMA)
+        db.executescript(SCHEMA + market.SCHEMA + poker.SCHEMA)
         with transaction():
             if "item_key" not in {row["name"] for row in db.execute("PRAGMA table_info(loot_openings)")}:
                 db.execute("ALTER TABLE loot_openings ADD COLUMN item_key TEXT")
@@ -312,8 +313,9 @@ def restore_empty_balance(user_id):
                   updated_at=? WHERE user_id=? AND amount=0
                   AND NOT EXISTS (SELECT 1 FROM active_rounds WHERE user_id=?)
                   AND NOT EXISTS (SELECT 1 FROM active_chicken_rounds WHERE user_id=?)
+                  AND NOT EXISTS (SELECT 1 FROM poker_members m JOIN poker_lobbies l ON l.code=m.lobby_code WHERE m.user_id=? AND json_extract(l.state_json,'$.status')='playing')
                   AND NOT EXISTS (SELECT 1 FROM crash_bets WHERE user_id=? AND payout IS NULL)""",
-               (user_id, utc_now(), user_id, user_id, user_id, user_id))
+               (user_id, utc_now(), user_id, user_id, user_id, user_id, user_id))
     return db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
 
 
@@ -1264,6 +1266,7 @@ def make_app():
         return ok({"suspended":suspended,"reason":reason if suspended else None},"Spieler gesperrt." if suspended else "Sperre aufgehoben.")
 
     market.install(app, globals())
+    poker.install(app, globals())
     return app
 
 

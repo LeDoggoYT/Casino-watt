@@ -16,6 +16,38 @@ from app import app, get_db, outcome as determine_outcome, hand_value, blackjack
 
 
 class WattCasinoApiTests(unittest.TestCase):
+    def test_poker_lobby_private_cards_and_showdown(self):
+        tokens = [self.request("POST", "/api/auth/register", {"username": name, "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
+                  for name in ("PokerHost", "PokerGuest")]
+        created = self.request("POST", "/api/poker/create", {}, tokens[0])
+        self.assertEqual(created.status_code, 201)
+        code = created.get_json()["data"]["lobby"]["code"]
+        self.assertEqual(self.request("POST", "/api/poker/start", {}, tokens[0]).status_code, 409)
+        self.assertEqual(self.request("POST", "/api/poker/join", {"code": code.lower()}, tokens[1]).status_code, 200)
+        self.assertEqual(self.request("POST", "/api/poker/start", {}, tokens[1]).status_code, 403)
+        started = self.request("POST", "/api/poker/start", {}, tokens[0]).get_json()["data"]["lobby"]
+        guest = self.request("GET", "/api/poker/current", token=tokens[1]).get_json()["data"]["lobby"]
+        self.assertEqual(started["hand"]["board"], [])
+        self.assertEqual(guest["hand"]["board"], [])
+        self.assertEqual(len(started["hand"]["cards"]), 2)
+        self.assertEqual(started["hand"]["opponentCards"], {})
+        self.assertNotEqual(started["hand"]["cards"], guest["hand"]["cards"])
+        self.assertEqual(started["balance"], 990)
+        for street, visible in (("flop", 3), ("turn", 4), ("river", 5)):
+            self.assertEqual(self.request("POST", "/api/poker/action", {"action": "check"}, tokens[0]).status_code, 200)
+            self.assertEqual(self.request("POST", "/api/poker/action", {"action": "check"}, tokens[0]).status_code, 409)
+            data = self.request("POST", "/api/poker/action", {"action": "check"}, tokens[1]).get_json()["data"]["lobby"]
+            self.assertEqual(data["hand"]["street"], street)
+            self.assertEqual(len(data["hand"]["board"]), visible)
+        self.request("POST", "/api/poker/action", {"action": "check"}, tokens[0])
+        finished = self.request("POST", "/api/poker/action", {"action": "check"}, tokens[1]).get_json()["data"]["lobby"]
+        self.assertEqual(finished["status"], "finished")
+        self.assertEqual(len(finished["hand"]["opponentCards"]), 1)
+        balances = [self.request("GET", "/api/poker/current", token=token).get_json()["data"]["lobby"]["balance"] for token in tokens]
+        self.assertEqual(sum(balances), 2000)
+        self.assertEqual(self.request("POST", "/api/poker/leave", {}, tokens[1]).status_code, 200)
+        self.assertIsNone(self.request("GET", "/api/poker/current", token=tokens[1]).get_json()["data"]["lobby"])
+
     def test_loot_rewards_history_and_duplicate_open(self):
         token = self.request("POST", "/api/auth/register", {"username": "LootPlayer", "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
         catalog = self.request("GET", "/api/loot/current", token=token).get_json()["data"]
