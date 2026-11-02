@@ -16,6 +16,15 @@ from app import app, get_db, outcome as determine_outcome, hand_value, blackjack
 
 
 class WattCasinoApiTests(unittest.TestCase):
+    def test_local_frontend_cors_with_configured_origins(self):
+        response = self.client.open("/api/auth/me", method="OPTIONS", headers={
+            "Origin": "http://127.0.0.1:5501",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        })
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.headers.get("Access-Control-Allow-Origin"), "http://127.0.0.1:5501")
+
     def test_poker_lobby_private_cards_and_showdown(self):
         tokens = [self.request("POST", "/api/auth/register", {"username": name, "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
                   for name in ("PokerHost", "PokerGuest")]

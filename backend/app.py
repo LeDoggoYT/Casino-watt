@@ -99,11 +99,15 @@ if not DATABASE_PATH.is_absolute():
 AVATAR_DIRECTORY = Path(os.environ.get("AVATAR_DIRECTORY", str(DATABASE_PATH.parent / "avatars"))).expanduser()
 if not AVATAR_DIRECTORY.is_absolute():
     AVATAR_DIRECTORY = (BASE_DIR / AVATAR_DIRECTORY).resolve()
-FRONTEND_ORIGINS = {
+LOCAL_FRONTEND_ORIGINS = {
+    "http://127.0.0.1:5501", "http://localhost:5501",
+    "http://127.0.0.1:8080", "http://localhost:8080",
+}
+FRONTEND_ORIGINS = LOCAL_FRONTEND_ORIGINS | {
     origin.strip().rstrip("/")
     for origin in os.environ.get(
         "FRONTEND_ORIGINS",
-        "https://wigipedia.netlify.app,http://127.0.0.1:5501,http://127.0.0.1:8080,http://localhost:5501,http://localhost:8080",
+        "https://wigipedia.netlify.app",
     ).split(",")
     if origin.strip()
 }
