@@ -35,7 +35,10 @@ ui.chips.forEach(chip => {
 document.querySelector("#pinball-clear-bet").addEventListener("click", () => { pinballSelectedBet = 0; updatePinballControls(); });
 const pinballForm = document.querySelector("#pinball-form");
 const pinballMessage = document.querySelector("#pinball-message");
-const pinballMultipliers = [200, 74, 12, 3.6, 1.5, .8, .6, .8, 1.5, 3.6, 12, 74, 200];
+const pinballMultipliers = [74, 12, 3.6, 1.5, .8, 0, .8, 1.5, 3.6, 12, 74];
+function pinballMultiplierLabel(value) {
+  return `${value === 0 ? "0,0" : String(value).replace(".", ",")}×`;
+}
 function pinballCircle(x, y, radius, className) {
   const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
   for (const [key, value] of Object.entries({ cx: x, cy: y, r: radius, class: className })) circle.setAttribute(key, value);
@@ -47,8 +50,8 @@ for (let row = 0; row < pinballMultipliers.length - 1; row++) {
 }
 pinballMultipliers.forEach((value, index) => {
   const slot = document.createElement("span");
-  slot.textContent = `${String(value).replace(".", ",")}×`;
-  slot.style.setProperty("--slot-color", `hsl(${Math.min(index, 12 - index) * 9} 78% 55%)`);
+  slot.textContent = pinballMultiplierLabel(value);
+  slot.style.setProperty("--slot-color", `hsl(${Math.min(index, pinballMultipliers.length - 1 - index) * 9} 78% 55%)`);
   pinballSlots.append(slot);
 });
 const pinballBall = pinballCircle(300, 20, 8, "pinball-ball");
@@ -82,7 +85,7 @@ async function animatePinball(path, slot) {
   const points = [{ x, y: 47 }];
   path.forEach((direction, index) => { x += direction ? 20 : -20; points.push({ x, y: 87 + index * 40 }); });
   // Use the actual field centre, including CSS gaps and responsive sizing.
-  points.push({ x: pinballTargetX(slot), y: 550 });
+  points.push({ x: pinballTargetX(slot), y: 470 });
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (!reduced) {
     await new Promise(resolve => {
@@ -100,7 +103,7 @@ async function animatePinball(path, slot) {
     });
   }
   pinballBall.setAttribute("cx", pinballTargetX(slot));
-  pinballBall.setAttribute("cy", 550);
+  pinballBall.setAttribute("cy", 470);
 }
 pinballForm.addEventListener("submit", async event => {
   event.preventDefault();
@@ -140,7 +143,7 @@ pinballForm.addEventListener("submit", async event => {
     pinballSlots.children[data.slot].classList.add("is-hit");
     document.querySelector("#pinball-balance").textContent = formatChips(data.balance);
     ui.balance.textContent = formatChips(data.balance);
-    pinballMessage.textContent = `${data.multiplier}× · ${formatChips(data.payout)} Chips ausgezahlt (${data.netResult >= 0 ? "+" : ""}${formatChips(data.netResult)} Chips).`;
+    pinballMessage.textContent = `${pinballMultiplierLabel(data.multiplier)} · ${formatChips(data.payout)} Chips ausgezahlt (${data.netResult >= 0 ? "+" : ""}${formatChips(data.netResult)} Chips).`;
   } catch (error) {
     await launch;
     pinballBall.setAttribute("cx", 300);

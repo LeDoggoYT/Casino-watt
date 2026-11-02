@@ -1029,7 +1029,7 @@ def make_app():
         except (TypeError, ValueError): bet = 0
         if not math.isfinite(bet) or bet < 5 or bet * 2 != round(bet * 2):
             raise ApiError(400, "Mindestens 5 Chips in 0,5er-Schritten einsetzen.")
-        multipliers = (200, 74, 12, 3.6, 1.5, 0.8, 0.6, 0.8, 1.5, 3.6, 12, 74, 200)
+        multipliers = (74, 12, 3.6, 1.5, 0.8, 0, 0.8, 1.5, 3.6, 12, 74)
         with transaction() as db:
             user_id = g.auth["user_id"]
             register_action(user_id, payload.get("actionId"), "pinball-play")
