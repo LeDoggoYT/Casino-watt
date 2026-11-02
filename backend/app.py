@@ -511,6 +511,10 @@ def public_upgrades(user_id: int, balance: float) -> dict:
 
 
 def register_action(user_id, action_id, action_type):
+    if not action_type.startswith("poker-") and get_db().execute("""SELECT 1 FROM poker_members m
+        JOIN poker_lobbies l ON l.code=m.lobby_code WHERE m.user_id=?
+        AND json_extract(l.state_json,'$.status')='playing'""", (user_id,)).fetchone():
+        raise ApiError(409, "Beende zuerst deine Poker-Runde.")
     if action_type in {"start", "chicken-start", "pinball-play", "slots-play", "loot-open"}:
         if get_db().execute("SELECT 1 FROM crash_bets WHERE user_id=? AND payout IS NULL", (user_id,)).fetchone():
             raise ApiError(409, "Beende zuerst deine Crash-Runde.")

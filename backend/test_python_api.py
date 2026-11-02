@@ -16,6 +16,49 @@ from app import app, get_db, outcome as determine_outcome, hand_value, blackjack
 
 
 class WattCasinoApiTests(unittest.TestCase):
+    def test_poker_raise_limit_turn_and_fold_payout(self):
+        tokens = [self.request("POST", "/api/auth/register", {"username": name, "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
+                  for name in ("PokerRaiseHost", "PokerRaiseGuest")]
+        self.request("POST", "/api/poker/create", {"name": "Raise Test Tisch"}, tokens[0])
+        self.request("POST", "/api/poker/join", {"name": "Raise Test Tisch"}, tokens[1])
+        self.request("POST", "/api/poker/start", {}, tokens[0])
+        self.assertEqual(self.request("POST", "/api/slots/play", {"bet": 5, "actionId": "poker-other-game-0001"}, tokens[0]).status_code, 409)
+        self.assertEqual(self.request("POST", "/api/poker/action", {"action": "fold", "actionId": "poker-wrong-turn-0001"}, tokens[1]).status_code, 409)
+        self.assertEqual(self.request("POST", "/api/poker/action", {"action": "raise", "amount": 1000, "actionId": "poker-too-large-0001"}, tokens[0]).status_code, 409)
+        raised = self.request("POST", "/api/poker/action", {"action": "raise", "amount": 5, "actionId": "poker-valid-raise-0001"}, tokens[0])
+        self.assertEqual(raised.get_json()["data"]["lobby"]["hand"]["pot"], 25)
+        self.assertEqual(raised.get_json()["data"]["lobby"]["hand"]["turnId"], raised.get_json()["data"]["lobby"]["players"][1]["id"])
+        folded = self.request("POST", "/api/poker/action", {"action": "fold", "actionId": "poker-guest-fold-0001"}, tokens[1]).get_json()["data"]["lobby"]
+        self.assertEqual(folded["status"], "finished")
+        self.assertEqual(folded["hand"]["pot"], 25)
+        balances = [self.request("GET", "/api/poker/current", token=token).get_json()["data"]["lobby"]["balance"] for token in tokens]
+        self.assertEqual(balances, [1010, 990])
+        with app.app_context():
+            stats = [get_db().execute("SELECT rounds_played,wins,losses FROM player_stats WHERE user_id=(SELECT id FROM users WHERE username=?)", (name,)).fetchone()
+                     for name in ("PokerRaiseHost", "PokerRaiseGuest")]
+        self.assertEqual([tuple(row) for row in stats], [(1, 1, 0), (1, 0, 1)])
+
+    def test_poker_tie_refunds_raises(self):
+        tokens = [self.request("POST", "/api/auth/register", {"username": name, "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
+                  for name in ("PokerTieHost", "PokerTieGuest")]
+        self.request("POST", "/api/poker/create", {"name": "Tie Test Tisch"}, tokens[0])
+        self.request("POST", "/api/poker/join", {"name": "Tie Test Tisch"}, tokens[1])
+        self.request("POST", "/api/poker/start", {}, tokens[0])
+        self.request("POST", "/api/poker/action", {"action": "raise", "amount": 20, "actionId": "poker-tie-raise-0001"}, tokens[0])
+        self.request("POST", "/api/poker/action", {"action": "call", "actionId": "poker-tie-call-0001"}, tokens[1])
+        for index, player in enumerate((1, 0, 0, 1, 1, 0)):
+            if index == 5:
+                with patch("poker.best_hand", return_value=(0, 14, 13, 12, 11, 9)):
+                    result = self.request("POST", "/api/poker/action", {"action": "draw", "actionId": f"poker-tie-draw-{index:04d}"}, tokens[player])
+            else:
+                result = self.request("POST", "/api/poker/action", {"action": "draw", "actionId": f"poker-tie-draw-{index:04d}"}, tokens[player])
+            self.assertEqual(result.status_code, 200)
+        finished = result.get_json()["data"]["lobby"]
+        self.assertIsNone(finished["hand"]["result"]["winnerId"])
+        self.assertEqual(finished["hand"]["pot"], 60)
+        balances = [self.request("GET", "/api/poker/current", token=token).get_json()["data"]["lobby"]["balance"] for token in tokens]
+        self.assertEqual(balances, [1000, 1000])
+
     def test_local_frontend_cors_with_configured_origins(self):
         response = self.client.open("/api/auth/me", method="OPTIONS", headers={
             "Origin": "http://127.0.0.1:5501",
@@ -46,14 +89,24 @@ class WattCasinoApiTests(unittest.TestCase):
         self.assertEqual(started["hand"]["opponentCards"], {})
         self.assertNotEqual(started["hand"]["cards"], guest["hand"]["cards"])
         self.assertEqual(started["balance"], 990)
-        for street, visible in (("flop", 3), ("turn", 4), ("river", 5)):
-            self.assertEqual(self.request("POST", "/api/poker/action", {"action": "check"}, tokens[0]).status_code, 200)
-            self.assertEqual(self.request("POST", "/api/poker/action", {"action": "check"}, tokens[0]).status_code, 409)
-            data = self.request("POST", "/api/poker/action", {"action": "check"}, tokens[1]).get_json()["data"]["lobby"]
+        raised = self.request("POST", "/api/poker/action", {"action": "raise", "amount": 25, "actionId": "poker-raise-preflop-0001"}, tokens[0])
+        self.assertEqual(raised.status_code, 200)
+        self.assertEqual(raised.get_json()["data"]["lobby"]["hand"]["pot"], 45)
+        self.assertEqual(self.request("POST", "/api/poker/action", {"action": "draw", "actionId": "poker-draw-blocked-0001"}, tokens[1]).status_code, 409)
+        called = self.request("POST", "/api/poker/action", {"action": "call", "actionId": "poker-call-preflop-0001"}, tokens[1]).get_json()["data"]["lobby"]
+        self.assertEqual(called["hand"]["pot"], 70)
+        self.assertEqual(called["hand"]["street"], "flop")
+        self.assertEqual(len(called["hand"]["board"]), 3)
+        self.assertEqual(called["balance"], 965)
+        for index, (street, visible) in enumerate((("turn", 4), ("river", 5))):
+            first, second = (tokens[1], tokens[0]) if index == 0 else (tokens[0], tokens[1])
+            self.assertEqual(self.request("POST", "/api/poker/action", {"action": "draw", "actionId": f"poker-draw-first-{index:04d}"}, first).status_code, 200)
+            self.assertEqual(self.request("POST", "/api/poker/action", {"action": "draw", "actionId": f"poker-draw-repeat-{index:04d}"}, first).status_code, 409)
+            data = self.request("POST", "/api/poker/action", {"action": "draw", "actionId": f"poker-draw-second-{index:04d}"}, second).get_json()["data"]["lobby"]
             self.assertEqual(data["hand"]["street"], street)
             self.assertEqual(len(data["hand"]["board"]), visible)
-        self.request("POST", "/api/poker/action", {"action": "check"}, tokens[0])
-        finished = self.request("POST", "/api/poker/action", {"action": "check"}, tokens[1]).get_json()["data"]["lobby"]
+        self.request("POST", "/api/poker/action", {"action": "draw", "actionId": "poker-river-first-0001"}, tokens[1])
+        finished = self.request("POST", "/api/poker/action", {"action": "draw", "actionId": "poker-river-second-0001"}, tokens[0]).get_json()["data"]["lobby"]
         self.assertEqual(finished["status"], "finished")
         self.assertEqual(len(finished["hand"]["opponentCards"]), 1)
         balances = [self.request("GET", "/api/poker/current", token=token).get_json()["data"]["lobby"]["balance"] for token in tokens]
