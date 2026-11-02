@@ -6,7 +6,7 @@
   <meta name="description" content="Watt Casino – kostenloses Blackjack mit virtuellem Spielgeld.">
   <title>Wigipeadia</title>
   <link rel="icon" href="https://www.wikipedia.org/static/favicon/wikipedia.ico" sizes="any">
-  <link rel="stylesheet" href="style.css?v=slots-1">
+  <link rel="stylesheet" href="style.css?v=poker-1">
 </head>
 <body>
   <aside id="win-notifications" class="win-notifications" aria-label="Große Gewinne" aria-live="polite" aria-relevant="additions"></aside>
@@ -90,6 +90,7 @@
       <nav class="main-nav" aria-label="Hauptnavigation">
         <button class="nav-link is-active" type="button" data-view="home">Startseite</button>
         <button class="nav-link" type="button" data-view="game">Blackjack</button>
+        <button class="nav-link" type="button" data-view="poker">Poker</button>
         <button class="nav-link" type="button" data-view="chicken">Chicken</button>
         <button class="nav-link" type="button" data-view="market">Handelsplatz</button>
         <button class="nav-link" type="button" data-view="leaderboard">Leaderboard</button>
@@ -111,19 +112,19 @@
         <div>
           <span class="section-kicker">Watt Casino</span>
           <h1 id="home-title">Wähle dein Spiel.</h1>
-          <p>Blackjack und Chicken sind geöffnet. Weitere Spiele kommen bald dazu.</p>
+          <p>Wähle ein Spiel oder triff Freunde am Poker-Tisch.</p>
         </div>
         <span class="home-hero-mark" aria-hidden="true">W</span>
       </section>
       <section class="games-section" aria-labelledby="games-title">
-        <div class="games-heading"><div><span class="section-kicker">Spielübersicht</span><h2 id="games-title">Unsere Spiele</h2></div><span>5 von 9 verfügbar</span></div>
+        <div class="games-heading"><div><span class="section-kicker">Spielübersicht</span><h2 id="games-title">Unsere Spiele</h2></div><span>6 von 9 verfügbar</span></div>
         <div class="game-grid">
           <article class="game-tile game-tile--available">
             <div class="game-tile-art game-tile-art--blackjack" aria-hidden="true"><span>♠</span><span>21</span></div>
             <div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Blackjack</h3><p>Komm so nah wie möglich an 21.</p><button class="game-tile-button" type="button" data-open-view="game">Spiel öffnen <span aria-hidden="true">→</span></button></div>
           </article>
           <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--crash" aria-hidden="true">↗</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Crash</h3><p>Gemeinsam starten. Rechtzeitig aussteigen.</p><button class="game-tile-button" type="button" data-open-view="crash">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
-          <article class="game-tile"><div class="game-tile-art game-tile-art--poker" aria-hidden="true">♣</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Poker</h3><p>Spiele deine besten Karten.</p></div></article>
+          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--poker" aria-hidden="true">♣</div><div class="game-tile-body"><span class="game-tile-status is-available">Nur online</span><h3>Poker</h3><p>Erstelle eine Lobby oder tritt mit Code bei.</p><button class="game-tile-button" type="button" data-open-view="poker">Zum Poker <span aria-hidden="true">→</span></button></div></article>
           <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--pinball" aria-hidden="true">◎</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Pinball</h3><p>Lass die Kugel fallen und triff dein Gewinnfeld.</p><button class="game-tile-button" type="button" data-open-view="pinball">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
           <article class="game-tile"><div class="game-tile-art game-tile-art--hilo" aria-hidden="true">↑↓</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Hi-Lo</h3><p>Ist die nächste Karte höher oder tiefer?</p></div></article>
           <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--chicken" aria-hidden="true">🐔</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Chicken</h3><p>Gehe weiter oder sichere deinen Gewinn.</p><button class="game-tile-button" type="button" data-open-view="chicken">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
@@ -237,6 +238,24 @@
             <div class="chicken-actions"><button id="chicken-start" class="chicken-primary" type="button">Runde starten</button><button id="chicken-step" type="button" hidden>Nächster Schritt</button><button id="chicken-cashout" type="button" hidden>Gewinn sichern</button></div>
             <p id="chicken-message" class="chicken-message" role="status" aria-live="polite">Die Prozentzahl zeigt die Erfolgschance pro Schritt. Mit jedem Schritt steigt das Risiko, den Einsatz zu verlieren.</p>
           </div>
+        </div>
+      </section>
+    </main>
+
+    <main id="poker-view" class="app-view poker-view" hidden>
+      <section class="poker-panel" aria-labelledby="poker-title">
+        <header class="section-header"><div><span class="section-kicker">Nur online · Texas Hold'em</span><h1 id="poker-title">Poker</h1><p>Spiele mit einer zweiten Person um einen Pot aus virtuellen Chips.</p></div></header>
+        <p id="poker-message" class="poker-message" role="status" aria-live="polite"></p>
+        <div id="poker-entry" class="poker-entry">
+          <div class="poker-box"><h2>Lobby erstellen</h2><p>Erhalte einen Code und teile ihn mit einem Freund.</p><button id="poker-create" class="game-tile-button" type="button">Lobby erstellen</button></div>
+          <form id="poker-join-form" class="poker-box"><h2>Lobby beitreten</h2><label for="poker-code">Sechsstelliger Lobby-Code</label><input id="poker-code" name="code" maxlength="6" pattern="[A-Za-z0-9]{6}" autocomplete="off" required><button class="game-tile-button" type="submit">Beitreten</button></form>
+        </div>
+        <div id="poker-table" hidden>
+          <div class="poker-table-heading"><div><span>Lobby-Code</span><strong id="poker-lobby-code"></strong></div><button id="poker-leave" type="button">Lobby verlassen</button></div>
+          <p id="poker-players" class="poker-players"></p>
+          <div id="poker-hand" hidden><div class="poker-board"><span id="poker-street"></span><div id="poker-board-cards" class="poker-cards"></div></div><div class="poker-pot">Pot: <strong id="poker-pot"></strong> Chips</div><div><span>Deine Karten</span><div id="poker-my-cards" class="poker-cards"></div></div><div id="poker-opponent" class="poker-opponent"></div></div>
+          <div class="poker-actions"><button id="poker-start" class="game-tile-button" type="button">Runde starten · 10 Chips</button><button id="poker-check" class="game-tile-button" type="button">Schieben</button><button id="poker-fold" type="button">Passen</button></div>
+          <p class="poker-rules">Zwei Spieler · 10 Chips Einsatz pro Person · nach jedem gemeinsamen Schieben werden weitere Gemeinschaftskarten aufgedeckt. Die beste Fünf-Karten-Hand gewinnt.</p>
         </div>
       </section>
     </main>
@@ -416,7 +435,8 @@
     </form>
   </dialog>
 
-  <script src="script.js?v=slots-1" defer></script>
+  <script src="script.js?v=poker-1" defer></script>
+  <script src="poker.js?v=1" defer></script>
   <script src="slots.js?v=1" defer></script>
   <script src="pinball.js?v=pinball-fix-4" defer></script>
   <script src="crash.js?v=1" defer></script>

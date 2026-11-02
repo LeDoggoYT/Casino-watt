@@ -54,7 +54,7 @@ const ui = {
   cropZoom: document.querySelector("#crop-zoom"),
   logout: document.querySelector("#logout"),
   navLinks: [...document.querySelectorAll(".nav-link")],
-  views: { home: document.querySelector("#home-view"), game: document.querySelector("#game-view"), chicken: document.querySelector("#chicken-view"), leaderboard: document.querySelector("#leaderboard-view"), upgrades: document.querySelector("#upgrades-view") },
+  views: { home: document.querySelector("#home-view"), game: document.querySelector("#game-view"), poker: document.querySelector("#poker-view"), chicken: document.querySelector("#chicken-view"), leaderboard: document.querySelector("#leaderboard-view"), upgrades: document.querySelector("#upgrades-view") },
   chickenBalance: document.querySelector("#chicken-balance"),
   chickenBet: document.querySelector("#chicken-bet"),
   chickenChips: document.querySelector("#chicken-chips"),
@@ -224,6 +224,7 @@ function clearSession() {
   state.sessionRetryTimer = null;
   stopLeaderboardPolling();
   stopHeartbeat();
+  if (typeof stopPoker === "function") stopPoker();
   ui.app.hidden = true;
   ui.suspendedScreen.hidden = true;
   ui.authScreen.hidden = false;
@@ -626,6 +627,7 @@ function newRound() {
 
 function setView(view) {
   if (!ui.views[view]) return;
+  if (state.activeView === "poker" && view !== "poker" && typeof stopPoker === "function") stopPoker();
   state.activeView = view;
   Object.entries(ui.views).forEach(([name, element]) => { element.hidden = name !== view; });
   ui.navLinks.forEach((link) => {
@@ -643,6 +645,7 @@ function setView(view) {
   if (view === "crash") startCrash();
   if (view === "loot") loadLoot();
   if (view === "market") loadMarket();
+  if (view === "poker" && typeof startPoker === "function") startPoker();
 }
 
 function positionChicken(step) {

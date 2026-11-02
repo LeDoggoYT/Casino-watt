@@ -1,0 +1,259 @@
+"""Two-player, server-authoritative Texas Hold'em lobbies."""
+import itertools
+import json
+import secrets
+import string
+
+from flask import g
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS poker_lobbies (
+ code TEXT PRIMARY KEY, host_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ state_json TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS poker_members (
+ user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+ lobby_code TEXT NOT NULL REFERENCES poker_lobbies(code) ON DELETE CASCADE,
+ joined_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_poker_members_lobby ON poker_members(lobby_code);
+"""
+
+RANKS = "23456789TJQKA"
+SUITS = "shdc"
+ANTE = 10
+STREETS = ("preflop", "flop", "turn", "river")
+
+
+def score_five(cards):
+    values = sorted((RANKS.index(card[0]) + 2 for card in cards), reverse=True)
+    counts = {value: values.count(value) for value in set(values)}
+    groups = sorted(((count, value) for value, count in counts.items()), reverse=True)
+    flush = len({card[1] for card in cards}) == 1
+    unique = sorted(set(values), reverse=True)
+    if 14 in unique:
+        unique.append(1)
+    straight = next((unique[i] for i in range(len(unique) - 4)
+                     if unique[i] - unique[i + 4] == 4), 0)
+    if straight and flush:
+        return (8, straight)
+    if groups[0][0] == 4:
+        return (7, groups[0][1], groups[1][1])
+    if groups[0][0] == 3 and groups[1][0] == 2:
+        return (6, groups[0][1], groups[1][1])
+    if flush:
+        return (5, *values)
+    if straight:
+        return (4, straight)
+    if groups[0][0] == 3:
+        return (3, groups[0][1], *sorted((v for v in values if v != groups[0][1]), reverse=True))
+    if groups[0][0] == 2 and groups[1][0] == 2:
+        pairs = sorted((groups[0][1], groups[1][1]), reverse=True)
+        return (2, *pairs, next(v for v in values if v not in pairs))
+    if groups[0][0] == 2:
+        return (1, groups[0][1], *sorted((v for v in values if v != groups[0][1]), reverse=True))
+    return (0, *values)
+
+
+def best_hand(cards):
+    return max(score_five(hand) for hand in itertools.combinations(cards, 5))
+
+
+def install(app, context):
+    db_for = context["get_db"]
+    transaction = context["transaction"]
+    auth = context["auth_required"]
+    ApiError = context["ApiError"]
+    ok = context["ok"]
+    body = context["body"]
+    utc_now = context["utc_now"]
+
+    def membership(db, user_id):
+        return db.execute("SELECT lobby_code FROM poker_members WHERE user_id=?", (user_id,)).fetchone()
+
+    def lobby(db, code):
+        row = db.execute("SELECT * FROM poker_lobbies WHERE code=?", (code,)).fetchone()
+        if not row:
+            raise ApiError(404, "Lobby nicht gefunden.")
+        return row, json.loads(row["state_json"])
+
+    def save(db, code, state):
+        db.execute("UPDATE poker_lobbies SET state_json=? WHERE code=?", (json.dumps(state), code))
+
+    def public(db, code, user_id):
+        row, state = lobby(db, code)
+        players = [dict(member) for member in db.execute("""
+            SELECT m.user_id AS id,u.username FROM poker_members m JOIN users u ON u.id=m.user_id
+            WHERE m.lobby_code=? ORDER BY m.joined_at,m.user_id""", (code,))]
+        hand = state.get("hand")
+        result = {
+            "code": code, "hostId": row["host_id"], "meId": user_id,
+            "players": players, "status": state["status"], "ante": ANTE,
+            "balance": db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"],
+        }
+        if hand:
+            visible = 0 if hand["street"] == "preflop" else 3 if hand["street"] == "flop" else 4 if hand["street"] == "turn" else 5
+            if state["status"] == "finished":
+                visible = 5
+            result["hand"] = {
+                "street": hand["street"], "board": hand["board"][:visible],
+                "cards": hand["cards"].get(str(user_id), []), "pot": hand["pot"],
+                "checked": hand["checked"], "result": hand.get("result"),
+                "opponentCards": {key: value for key, value in hand["cards"].items() if key != str(user_id)}
+                if state["status"] == "finished" else {},
+            }
+        return result
+
+    @app.get("/api/poker/current")
+    @auth
+    def poker_current():
+        db = db_for()
+        member = membership(db, g.auth["user_id"])
+        return ok({"lobby": public(db, member["lobby_code"], g.auth["user_id"]) if member else None})
+
+    @app.post("/api/poker/create")
+    @auth
+    def poker_create():
+        with transaction() as db:
+            uid = g.auth["user_id"]
+            if membership(db, uid):
+                raise ApiError(409, "Du bist bereits in einer Poker-Lobby.")
+            alphabet = string.ascii_uppercase + string.digits
+            for _ in range(8):
+                code = "".join(secrets.choice(alphabet) for _ in range(6))
+                if not db.execute("SELECT 1 FROM poker_lobbies WHERE code=?", (code,)).fetchone():
+                    break
+            else:
+                raise ApiError(503, "Lobby-Code konnte nicht erstellt werden.")
+            now = utc_now()
+            db.execute("INSERT INTO poker_lobbies VALUES (?,?,?,?)", (code, uid, json.dumps({"status": "waiting"}), now))
+            db.execute("INSERT INTO poker_members VALUES (?,?,?)", (uid, code, now))
+            result = public(db, code, uid)
+        return ok({"lobby": result}, "Lobby erstellt.", 201)
+
+    @app.post("/api/poker/join")
+    @auth
+    def poker_join():
+        code = body().get("code", "")
+        if not isinstance(code, str) or len(code.strip()) != 6 or not code.strip().isalnum():
+            raise ApiError(400, "Bitte gib einen sechsstelligen Lobby-Code ein.")
+        code = code.strip().upper()
+        with transaction() as db:
+            uid = g.auth["user_id"]
+            if membership(db, uid):
+                raise ApiError(409, "Du bist bereits in einer Poker-Lobby.")
+            _, state = lobby(db, code)
+            if state["status"] != "waiting":
+                raise ApiError(409, "Diese Lobby hat bereits begonnen.")
+            if db.execute("SELECT COUNT(*) AS n FROM poker_members WHERE lobby_code=?", (code,)).fetchone()["n"] >= 2:
+                raise ApiError(409, "Diese Lobby ist voll.")
+            db.execute("INSERT INTO poker_members VALUES (?,?,?)", (uid, code, utc_now()))
+            result = public(db, code, uid)
+        return ok({"lobby": result}, "Lobby beigetreten.")
+
+    @app.post("/api/poker/leave")
+    @auth
+    def poker_leave():
+        with transaction() as db:
+            uid = g.auth["user_id"]
+            member = membership(db, uid)
+            if not member:
+                raise ApiError(409, "Du bist in keiner Poker-Lobby.")
+            code = member["lobby_code"]
+            row, state = lobby(db, code)
+            if state["status"] == "playing":
+                finish(db, code, state, next(int(pid) for pid in state["hand"]["cards"] if int(pid) != uid), "Der andere Spieler hat den Tisch verlassen.")
+            db.execute("DELETE FROM poker_members WHERE user_id=?", (uid,))
+            other = db.execute("SELECT user_id FROM poker_members WHERE lobby_code=?", (code,)).fetchone()
+            if other:
+                if row["host_id"] == uid:
+                    db.execute("UPDATE poker_lobbies SET host_id=? WHERE code=?", (other["user_id"], code))
+                save(db, code, {"status": "waiting"})
+            else:
+                db.execute("DELETE FROM poker_lobbies WHERE code=?", (code,))
+        return ok(message="Lobby verlassen.")
+
+    def finish(db, code, state, winner, message):
+        hand = state["hand"]
+        if winner is None:
+            for pid in hand["cards"]:
+                db.execute("UPDATE balances SET amount=amount+?,updated_at=? WHERE user_id=?", (ANTE, utc_now(), int(pid)))
+        else:
+            db.execute("UPDATE balances SET amount=amount+?,updated_at=? WHERE user_id=?", (hand["pot"], utc_now(), winner))
+        hand["result"] = {"winnerId": winner, "message": message}
+        state["status"] = "finished"
+        save(db, code, state)
+
+    @app.post("/api/poker/start")
+    @auth
+    def poker_start():
+        with transaction() as db:
+            uid = g.auth["user_id"]
+            member = membership(db, uid)
+            if not member:
+                raise ApiError(409, "Erstelle oder betrete zuerst eine Lobby.")
+            code = member["lobby_code"]
+            row, state = lobby(db, code)
+            if row["host_id"] != uid:
+                raise ApiError(403, "Nur der Host kann die Runde starten.")
+            if state["status"] == "playing":
+                raise ApiError(409, "Die Runde läuft bereits.")
+            players = [r["user_id"] for r in db.execute("SELECT user_id FROM poker_members WHERE lobby_code=? ORDER BY joined_at,user_id", (code,))]
+            if len(players) != 2:
+                raise ApiError(409, "Für Poker werden zwei Spieler benötigt.")
+            for pid in players:
+                balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (pid,)).fetchone()["amount"]
+                if balance < ANTE:
+                    raise ApiError(409, "Beide Spieler brauchen mindestens 10 Chips.")
+                if db.execute("SELECT 1 FROM active_rounds WHERE user_id=?", (pid,)).fetchone() or db.execute("SELECT 1 FROM active_chicken_rounds WHERE user_id=?", (pid,)).fetchone():
+                    raise ApiError(409, "Ein Spieler muss zuerst seine laufende Runde beenden.")
+            for pid in players:
+                db.execute("UPDATE balances SET amount=amount-?,updated_at=? WHERE user_id=?", (ANTE, utc_now(), pid))
+            deck = [rank + suit for rank in RANKS for suit in SUITS]
+            secrets.SystemRandom().shuffle(deck)
+            state = {"status": "playing", "hand": {
+                "street": "preflop", "board": [deck.pop() for _ in range(5)],
+                "cards": {str(pid): [deck.pop(), deck.pop()] for pid in players},
+                "checked": [], "pot": 2 * ANTE,
+            }}
+            save(db, code, state)
+            result = public(db, code, uid)
+        return ok({"lobby": result}, "Runde gestartet.")
+
+    @app.post("/api/poker/action")
+    @auth
+    def poker_action():
+        action = body().get("action")
+        if action not in ("check", "fold"):
+            raise ApiError(400, "Ungültige Poker-Aktion.")
+        with transaction() as db:
+            uid = g.auth["user_id"]
+            member = membership(db, uid)
+            if not member:
+                raise ApiError(409, "Du bist in keiner Poker-Lobby.")
+            code = member["lobby_code"]
+            _, state = lobby(db, code)
+            if state["status"] != "playing":
+                raise ApiError(409, "Es läuft keine Poker-Runde.")
+            hand = state["hand"]
+            if str(uid) not in hand["cards"]:
+                raise ApiError(403, "Du spielst in dieser Runde nicht mit.")
+            if uid in hand["checked"]:
+                raise ApiError(409, "Du hast in dieser Phase bereits geschoben.")
+            other = next(int(pid) for pid in hand["cards"] if int(pid) != uid)
+            if action == "fold":
+                finish(db, code, state, other, "Ein Spieler hat gepasst.")
+            else:
+                hand["checked"].append(uid)
+                if len(hand["checked"]) == 2:
+                    index = STREETS.index(hand["street"])
+                    if index == 3:
+                        scores = {int(pid): best_hand(cards + hand["board"]) for pid, cards in hand["cards"].items()}
+                        winner = max(scores, key=scores.get) if len(set(scores.values())) > 1 else None
+                        finish(db, code, state, winner, "Gleichstand: Einsatz zurück." if winner is None else "Showdown: beste Hand gewinnt den Pot.")
+                    else:
+                        hand["street"] = STREETS[index + 1]
+                        hand["checked"] = []
+                        save(db, code, state)
+                else:
+                    save(db, code, state)
+            result = public(db, code, uid)
+        return ok({"lobby": result})

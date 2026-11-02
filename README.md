@@ -70,6 +70,8 @@ Vor einer öffentlichen Veröffentlichung muss ein längeres eigenes Admin-Passw
 4. Unter Web: Add a new web app → Manual configuration → Python 3.13.
 5. Öffne die erzeugte WSGI-Datei. Ersetze ihren Inhalt durch `backend/pythonanywhere_wsgi.py.example`; darin `DEIN_PYTHONANYWHERE_NAME` durch deinen Account-Namen ersetzen.
 6. Klicke Reload und prüfe `https://DEIN_PYTHONANYWHERE_NAME.pythonanywhere.com/health`.
+
+Lokale Frontends auf `127.0.0.1` oder `localhost` mit Port 5501 oder 8080 sind zusätzlich erlaubt. Nach Backend-Änderungen auf PythonAnywhere `git pull` ausführen und die Web-App unter **Web → Reload** neu laden; sonst antwortet weiterhin die alte API-Version.
 7. Ändere danach in **beiden** Dateien `script.js` und `admin/admin.js`:
 
     const API_URL = "https://DEIN_PYTHONANYWHERE_NAME.pythonanywhere.com";
