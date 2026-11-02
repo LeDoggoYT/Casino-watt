@@ -505,7 +505,7 @@ def public_upgrades(user_id: int, balance: float) -> dict:
 
 
 def register_action(user_id, action_id, action_type):
-    if action_type in {"start", "chicken-start", "pinball-play", "loot-open"}:
+    if action_type in {"start", "chicken-start", "pinball-play", "slots-play", "loot-open"}:
         if get_db().execute("SELECT 1 FROM crash_bets WHERE user_id=? AND payout IS NULL", (user_id,)).fetchone():
             raise ApiError(409, "Beende zuerst deine Crash-Runde.")
     if not isinstance(action_id, str) or not ACTION_RE.fullmatch(action_id):
@@ -981,6 +981,35 @@ def make_app():
             after = restore_empty_balance(user_id)
             return ok({"balance": after, "item": item, "rewardIndex": index, "boxKey": key,
                        "history": loot_history(user_id), "inventory": loot_inventory(user_id)})
+
+    @app.post("/api/slots/play")
+    @auth_required
+    def slots_play():
+        payload = body()
+        bet = payload.get("bet")
+        if type(bet) not in (float, int) or not 5 <= bet < 2**52 or bet * 2 != round(bet * 2):
+            raise ApiError(400, "Mindestens 5 Chips in 0,5er-Schritten einsetzen.")
+        with transaction() as db:
+            user_id = g.auth["user_id"]
+            register_action(user_id, payload.get("actionId"), "slots-play")
+            if load_round(user_id) or db.execute("SELECT 1 FROM active_chicken_rounds WHERE user_id=?", (user_id,)).fetchone():
+                raise ApiError(409, "Beende zuerst deine laufende Runde.")
+            balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()[0]
+            if bet > balance:
+                raise ApiError(400, "Nicht genügend Chips.")
+            symbols = [secrets.randbelow(5) for _ in range(3)]
+            distinct = len(set(symbols))
+            multiplier = (5, 8, 12, 16, 20)[symbols[0]] if distinct == 1 else int(distinct == 2)
+            payout = bet * multiplier
+            net = payout - bet
+            db.execute("UPDATE balances SET amount=amount+?,updated_at=? WHERE user_id=?", (net,utc_now(),user_id))
+            after = restore_empty_balance(user_id)
+            db.execute("""UPDATE player_stats SET rounds_played=rounds_played+1,wins=wins+?,losses=losses+?,pushes=pushes+?,
+                          highest_balance=MAX(highest_balance,?),biggest_win=MAX(biggest_win,?),
+                          total_won=total_won+?,total_lost=total_lost+? WHERE user_id=?""",
+                       (int(net>0),int(net<0),int(net==0),after,max(0,net),max(0,net),max(0,-net),user_id))
+            record_big_win(db,user_id,"Slots",net,bet)
+        return ok({"symbols": symbols, "multiplier": multiplier, "payout": payout, "balance": after})
 
     @app.post("/api/pinball/play")
     @auth_required
