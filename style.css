@@ -1407,7 +1407,7 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); ou
 #pinball-board { display: block; width: 100%; height: auto; overflow: visible; }
 .pinball-peg { fill: #eef5fa; }
 .pinball-ball { fill: #f6ca6d; filter: drop-shadow(0 0 6px #ffc35e); }
-.pinball-slots { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 4px; }
+.pinball-slots { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 4px; }
 .pinball-slots span { padding: 12px 0; border-radius: 6px; text-align: center; background: var(--slot-color); color: #17202a; font-size: clamp(9px, 1.8vw, 15px); font-weight: 800; transition: transform .2s, box-shadow .2s; }
 .pinball-slots .is-hit { transform: translateY(-6px); box-shadow: 0 0 0 2px #fff, 0 0 25px var(--slot-color); }
 .pinball-controls { display: grid; gap: 14px; margin-top: 24px; padding: 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }

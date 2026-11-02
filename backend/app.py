@@ -36,6 +36,9 @@ CLEANUP_INTERVAL_SECONDS = 15 * 60
 MAX_UPGRADE_LEVEL = 5
 CHICKEN_MULTIPLIERS = (0.8, 1.0, 2.4, 3.0, 3.8, 4.8, 6.0, 7.5, 9.5)
 CHICKEN_SUCCESS_CHANCES = (90, 85, 80, 75, 70, 65, 60, 55, 50)
+PINBALL_MULTIPLIERS = (200, 74, 12, 3.6, 1.5, 0.8, 0, 0.8, 1.5, 3.6, 12, 74, 200)
+# Ten thousand equally likely outcomes: the middle 0× field has a 2% chance.
+PINBALL_SLOT_WEIGHTS = (1, 3, 10, 50, 400, 4436, 200, 4436, 400, 50, 10, 3, 1)
 LOOT_CATALOG = json.loads((BASE_DIR / "loot_catalog.json").read_text(encoding="utf-8"))
 LOOT_ITEMS = LOOT_CATALOG["items"]
 LOOT_ITEM_MAP = {item["key"]: item for item in LOOT_ITEMS}
@@ -1029,7 +1032,6 @@ def make_app():
         except (TypeError, ValueError): bet = 0
         if not math.isfinite(bet) or bet < 5 or bet * 2 != round(bet * 2):
             raise ApiError(400, "Mindestens 5 Chips in 0,5er-Schritten einsetzen.")
-        multipliers = (74, 12, 3.6, 1.5, 0.8, 0, 0.8, 1.5, 3.6, 12, 74)
         with transaction() as db:
             user_id = g.auth["user_id"]
             register_action(user_id, payload.get("actionId"), "pinball-play")
@@ -1037,13 +1039,16 @@ def make_app():
                 raise ApiError(409, "Beende zuerst die laufende Runde.")
             balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
             if bet > balance: raise ApiError(400, "Nicht genügend Chips.")
-            # Pick either side equally, then favour it slightly on each bounce.
-            # This increases winning outer landings without changing payouts.
-            preferred_side = secrets.randbelow(2)
-            path = [preferred_side if secrets.randbelow(1000) < 605 else 1 - preferred_side
-                    for _ in range(len(multipliers) - 1)]
-            slot = sum(path)
-            payout = round(bet * multipliers[slot] * 2) / 2
+            roll = secrets.randbelow(sum(PINBALL_SLOT_WEIGHTS))
+            slot = 0
+            for index, weight in enumerate(PINBALL_SLOT_WEIGHTS):
+                if roll < weight:
+                    slot = index
+                    break
+                roll -= weight
+            path = [1] * slot + [0] * (len(PINBALL_MULTIPLIERS) - 1 - slot)
+            secrets.SystemRandom().shuffle(path)
+            payout = round(bet * PINBALL_MULTIPLIERS[slot] * 2) / 2
             net = payout - bet
             after = balance + net
             if after == 0: after = 1000 + 250 * upgrade_levels(user_id)["starting_capital"]
@@ -1053,7 +1058,7 @@ def make_app():
                           total_won=total_won+?,total_lost=total_lost+? WHERE user_id=?""",
                        (int(net>0), int(net<0), after, max(0,net), max(0,net), max(0,-net), user_id))
             record_big_win(db, user_id, "Pinball", net, bet)
-        return ok({"path": path, "slot": slot, "multiplier": multipliers[slot], "multipliers": multipliers, "payout": payout, "netResult": net, "balance": after})
+        return ok({"path": path, "slot": slot, "multiplier": PINBALL_MULTIPLIERS[slot], "multipliers": PINBALL_MULTIPLIERS, "payout": payout, "netResult": net, "balance": after})
 
     @app.get("/api/chicken/current")
     @auth_required

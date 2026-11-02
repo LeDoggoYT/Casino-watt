@@ -35,7 +35,8 @@ ui.chips.forEach(chip => {
 document.querySelector("#pinball-clear-bet").addEventListener("click", () => { pinballSelectedBet = 0; updatePinballControls(); });
 const pinballForm = document.querySelector("#pinball-form");
 const pinballMessage = document.querySelector("#pinball-message");
-let pinballMultipliers = [74, 12, 3.6, 1.5, .8, 0, .8, 1.5, 3.6, 12, 74];
+const pinballCurrentMultipliers = [200, 74, 12, 3.6, 1.5, .8, 0, .8, 1.5, 3.6, 12, 74, 200];
+let pinballMultipliers = pinballCurrentMultipliers;
 function pinballMultiplierLabel(value) {
   return `${value === 0 ? "0,0" : String(value).replace(".", ",")}×`;
 }
@@ -158,7 +159,7 @@ pinballForm.addEventListener("submit", async event => {
     pinballSlots.children[data.slot].classList.add("is-hit");
     document.querySelector("#pinball-balance").textContent = formatChips(data.balance);
     ui.balance.textContent = formatChips(data.balance);
-    pinballMessage.textContent = `${pinballMultiplierLabel(data.multiplier)} · ${formatChips(data.payout)} Chips ausgezahlt (${data.netResult >= 0 ? "+" : ""}${formatChips(data.netResult)} Chips).${pinballMultipliers.length === 13 ? " Der Server verwendet noch die alte Bahn. Bitte PythonAnywhere aktualisieren." : ""}`;
+    pinballMessage.textContent = `${pinballMultiplierLabel(data.multiplier)} · ${formatChips(data.payout)} Chips ausgezahlt (${data.netResult >= 0 ? "+" : ""}${formatChips(data.netResult)} Chips).${pinballMultipliers.some((value, index) => value !== pinballCurrentMultipliers[index]) ? " Der Server verwendet noch andere Gewinnfelder. Bitte PythonAnywhere aktualisieren." : ""}`;
   } catch (error) {
     await launch;
     pinballBall.setAttribute("cx", 300);
