@@ -443,6 +443,7 @@ class WattCasinoApiTests(unittest.TestCase):
         config = self.request("GET", "/api/pinball/config", token=token).get_json()["data"]
         weights = config["slotWeights"]
         self.assertEqual(len(weights), len(config["multipliers"]))
+        self.assertEqual(config["multipliers"], [53, 38, 12, 3.6, 1.5, 0.8, 0.3, 0.8, 1.5, 3.6, 12, 38, 53])
         self.assertEqual(sum(weights), config["totalWeight"])
         self.assertEqual(weights, [100, 200, 400, 700, 1200, 1400, 2000, 1400, 1200, 700, 400, 200, 100])
         self.assertEqual(weights[5] / config["totalWeight"], 0.14)
@@ -451,7 +452,7 @@ class WattCasinoApiTests(unittest.TestCase):
         self.assertEqual(weights[7] / config["totalWeight"], 0.14)
         self.assertEqual(sum(weight for weight, multiplier in zip(weights, config["multipliers"]) if multiplier > 1) / config["totalWeight"], 0.52)
         expected_return = sum(weight * multiplier for weight, multiplier in zip(weights, config["multipliers"])) / config["totalWeight"]
-        self.assertAlmostEqual(expected_return, 9.068)
+        self.assertAlmostEqual(expected_return, 4.688)
         for index, (roll, expected_slot) in enumerate(((0, 0), (1400, 4), (2600, 5), (4000, 6), (9999, 12))):
             with patch("app.secrets.randbelow", return_value=roll):
                 response = self.request("POST", "/api/pinball/play", {"bet": 5, "actionId": f"pinball-odds-roll-{index:04d}"}, token)
