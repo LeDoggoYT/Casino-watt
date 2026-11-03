@@ -217,12 +217,16 @@ class WattCasinoApiTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
         RATE_BUCKETS.clear()
+        WattCasinoApiTests._ip_sequence = getattr(WattCasinoApiTests, "_ip_sequence", 0) + 1
+        self.remote_addr = f"198.18.0.{WattCasinoApiTests._ip_sequence}"
 
-    def request(self, method, path, payload=None, token=None):
+    def request(self, method, path, payload=None, token=None, ip=None, real_ip=None):
         headers = {"Origin": "http://127.0.0.1:8080"}
         if token:
             headers["Authorization"] = f"Bearer {token}"
-        return self.client.open(path, method=method, json=payload, headers=headers)
+        if real_ip:
+            headers["X-Real-IP"] = real_ip
+        return self.client.open(path, method=method, json=payload, headers=headers, environ_overrides={"REMOTE_ADDR": ip or self.remote_addr})
 
     def admin_token(self):
         credentials = {"username": "Tiago", "password": "SicheresTestpasswort9"}
@@ -383,6 +387,101 @@ class WattCasinoApiTests(unittest.TestCase):
         for player in (alpha, beta):
             profile = self.request("GET", f"/api/players/{player['username']}", token=first).get_json()["data"]["player"]
             self.assertEqual(profile["rank"], player["rank"])
+
+    def test_moderator_can_manage_only_own_balance(self):
+        owner = self.admin_token()
+        moderator = self.request("POST", "/api/auth/register", {"username": "OwnMoneyMod", "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
+        self.request("POST", "/api/auth/register", {"username": "OtherMoney", "password": "SicheresTestpasswort9"})
+        self.assertEqual(self.request("PUT", "/api/admin/moderators/OwnMoneyMod", {"permissions": ["change_balance"]}, owner).status_code, 400)
+        self.assertEqual(self.request("PUT", "/api/admin/moderators/OwnMoneyMod", {"permissions": ["change_own_balance"]}, owner).status_code, 200)
+        access = self.request("GET", "/api/admin/me", token=moderator).get_json()["data"]
+        self.assertEqual(access["permissions"], ["change_own_balance"])
+        listing = self.request("GET", "/api/admin/players?search=OtherMoney", token=moderator).get_json()["data"]
+        self.assertEqual([player["username"] for player in listing["players"]], ["OwnMoneyMod"])
+        with app.app_context():
+            other_id = get_db().execute("SELECT id FROM users WHERE username='OtherMoney'").fetchone()["id"]
+        self.assertEqual(self.request("PATCH", f"/api/admin/players/{other_id}/balance", {"amount": 5000}, moderator).status_code, 403)
+        self.assertEqual(self.request("PATCH", f"/api/admin/players/{access['userId']}/balance", {"amount": 1500}, moderator).status_code, 200)
+        self.assertEqual(self.request("GET", "/api/admin/players", token=moderator).get_json()["data"]["players"][0]["balance"], 1500)
+        results = self.request("GET", "/api/admin/users?search=OwnMoney", token=owner).get_json()["data"]["users"]
+        self.assertEqual(results[0]["username"], "OwnMoneyMod")
+        self.assertEqual(self.request("GET", "/api/admin/users?search=OwnMoney", token=moderator).status_code, 403)
+
+    def test_suspension_bans_known_ips_and_blocks_new_accounts(self):
+        owner = self.admin_token()
+        credentials = {"username": "BannedPlayer", "password": "SicheresTestpasswort9"}
+        banned_ip = "203.0.113.10"
+        second_ip = "203.0.113.11"
+        token = self.request("POST", "/api/auth/register", credentials, ip=banned_ip).get_json()["data"]["token"]
+        other = {"username": "SafePlayer", "password": "SicheresTestpasswort9"}
+        self.request("POST", "/api/auth/register", other, ip=second_ip)
+        with app.app_context():
+            user_id = get_db().execute("SELECT id FROM users WHERE username='BannedPlayer'").fetchone()["id"]
+        self.assertEqual(self.request("PATCH", f"/api/admin/players/{user_id}/suspension", {"suspended": True, "reason": "Regelverstoss"}, owner).status_code, 200)
+        self.assertEqual(self.request("GET", "/api/auth/me", token=token, ip=banned_ip).status_code, 403)
+        self.assertEqual(self.request("POST", "/api/auth/register", {"username": "BanEvasion", "password": "SicheresTestpasswort9"}, ip=banned_ip).status_code, 403)
+        self.assertEqual(self.request("POST", "/api/auth/login", other, ip=banned_ip).status_code, 403)
+        self.assertEqual(self.request("POST", "/api/auth/login", other, ip=second_ip).status_code, 200)
+        self.assertEqual(self.request("POST", "/api/auth/login", credentials, ip="203.0.113.12").status_code, 403)
+        self.assertEqual(self.request("POST", "/api/auth/register", {"username": "AnotherEvasion", "password": "SicheresTestpasswort9"}, ip="203.0.113.12").status_code, 403)
+        self.assertEqual(self.request("PATCH", f"/api/admin/players/{user_id}/suspension", {"suspended": False}, owner).status_code, 200)
+        self.assertEqual(self.request("POST", "/api/auth/login", credentials, ip=banned_ip).status_code, 200)
+
+    def test_pythonanywhere_uses_real_ip_header_for_bans(self):
+        owner = self.admin_token()
+        with patch.dict(os.environ, {"NODE_ENV": "production"}):
+            registered = self.request("POST", "/api/auth/register", {"username": "ProxyBanned", "password": "SicheresTestpasswort9"}, ip="10.0.0.1", real_ip="203.0.113.30")
+            self.assertEqual(registered.status_code, 201)
+            with app.app_context():
+                user_id = get_db().execute("SELECT id FROM users WHERE username='ProxyBanned'").fetchone()["id"]
+            self.assertEqual(self.request("PATCH", f"/api/admin/players/{user_id}/suspension", {"suspended": True, "reason": "Test"}, owner).status_code, 200)
+            self.assertEqual(self.request("POST", "/api/auth/register", {"username": "ProxyEvasion", "password": "SicheresTestpasswort9"}, ip="10.0.0.2", real_ip="203.0.113.30").status_code, 403)
+            self.assertEqual(self.request("POST", "/api/auth/register", {"username": "ProxySafe", "password": "SicheresTestpasswort9"}, ip="10.0.0.1", real_ip="203.0.113.31").status_code, 201)
+
+    def test_pinball_uses_published_probabilities_and_varied_slots(self):
+        token = self.request("POST", "/api/auth/register", {"username": "PinballOdds", "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
+        config = self.request("GET", "/api/pinball/config", token=token).get_json()["data"]
+        weights = config["slotWeights"]
+        self.assertEqual(len(weights), len(config["multipliers"]))
+        self.assertEqual(sum(weights), config["totalWeight"])
+        self.assertEqual((weights[5] + weights[7]) / config["totalWeight"], 0.5)
+        for index, (roll, expected_slot) in enumerate(((0, 0), (212, 4), (1412, 5), (3912, 6), (9999, 12))):
+            with patch("app.secrets.randbelow", return_value=roll):
+                response = self.request("POST", "/api/pinball/play", {"bet": 5, "actionId": f"pinball-odds-roll-{index:04d}"}, token)
+            self.assertEqual(response.status_code, 200)
+            data = response.get_json()["data"]
+            self.assertEqual(data["slot"], expected_slot)
+            self.assertEqual(data["multiplier"], config["multipliers"][expected_slot])
+            self.assertEqual(data["slotWeights"], weights)
+            self.assertEqual(sum(data["path"]), expected_slot)
+
+    def test_owner_can_delete_player_and_cascade_account_data(self):
+        owner = self.admin_token()
+        credentials = {"username": "DeleteTarget", "password": "SicheresTestpasswort9"}
+        token = self.request("POST", "/api/auth/register", credentials).get_json()["data"]["token"]
+        with app.app_context():
+            db = get_db()
+            player_id = db.execute("SELECT id FROM users WHERE username='DeleteTarget'").fetchone()["id"]
+            owner_id = db.execute("SELECT id FROM users WHERE username_normalized='tiago'").fetchone()["id"]
+            db.execute("INSERT INTO market_trades (item_key,seller_id,buyer_id,price,at) VALUES (?,?,?,?,?)",("demo",player_id,owner_id,1,1))
+        self.assertEqual(self.request("POST", "/api/poker/create", {"name": "Delete Test Tisch"}, token).status_code, 201)
+        self.assertEqual(self.request("POST", "/api/poker/join", {"name": "Delete Test Tisch"}, owner).status_code, 200)
+        self.assertEqual(self.request("POST", "/api/poker/start", {}, token).status_code, 200)
+        self.assertEqual(self.request("GET", "/api/auth/me", token=owner).get_json()["data"]["game"]["balance"], 990)
+        endpoint = f"/api/admin/players/{player_id}"
+        self.assertEqual(self.request("DELETE", endpoint, {"confirmUsername": "wrong"}, owner).status_code, 400)
+        self.assertEqual(self.request("DELETE", f"/api/admin/players/{owner_id}", {"confirmUsername": "Tiago"}, owner).status_code, 403)
+        self.assertEqual(self.request("DELETE", endpoint, {"confirmUsername": "DeleteTarget"}, token).status_code, 403)
+        self.assertEqual(self.request("DELETE", endpoint, {"confirmUsername": "DeleteTarget"}, owner).status_code, 200)
+        self.assertEqual(self.request("GET", "/api/auth/me", token=token).status_code, 401)
+        self.assertEqual(self.request("GET", "/api/players/DeleteTarget", token=owner).status_code, 404)
+        self.assertIsNone(self.request("GET", "/api/poker/current", token=owner).get_json()["data"]["lobby"])
+        self.assertEqual(self.request("GET", "/api/auth/me", token=owner).get_json()["data"]["game"]["balance"], 1000)
+        with app.app_context():
+            db = get_db()
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM market_trades WHERE seller_id=? OR buyer_id=?",(player_id,player_id)).fetchone()[0],0)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM user_ips WHERE user_id=?",(player_id,)).fetchone()[0],0)
+            self.assertEqual(db.execute("PRAGMA foreign_key_check").fetchall(),[])
 
     def test_avatar_upload_is_saved_and_publicly_served(self):
         player = {"username": "AvatarPlayer", "password": "SicheresTestpasswort9"}

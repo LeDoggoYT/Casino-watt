@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import functools
 import hashlib
+import ipaddress
 import json
 import math
 import os
@@ -36,8 +37,11 @@ MAX_UPGRADE_LEVEL = 5
 CHICKEN_MULTIPLIERS = (0.8, 1.0, 2.4, 3.0, 3.8, 4.8, 6.0, 7.5, 9.5)
 CHICKEN_SUCCESS_CHANCES = (90, 85, 80, 75, 70, 65, 60, 55, 50)
 PINBALL_MULTIPLIERS = (200, 74, 12, 3.6, 1.5, 0.8, 0, 0.8, 1.5, 3.6, 12, 74, 200)
-# Ten thousand equally likely outcomes: the middle 0× field has a 2% chance.
-PINBALL_SLOT_WEIGHTS = (1, 3, 10, 50, 400, 4436, 200, 4436, 400, 50, 10, 3, 1)
+# Ten thousand equally likely outcomes, mirrored around the centre field.
+# Combined 0.8× chance is 50% instead of 88.72%; expected payout is 98.28%.
+PINBALL_SLOT_WEIGHTS = (1, 1, 10, 200, 1200, 2500, 2176, 2500, 1200, 200, 10, 1, 1)
+if len(PINBALL_MULTIPLIERS) != len(PINBALL_SLOT_WEIGHTS) or sum(PINBALL_SLOT_WEIGHTS) != 10_000:
+    raise RuntimeError("Ungültige Pinball-Gewinnverteilung.")
 LOOT_CATALOG = json.loads((BASE_DIR / "loot_catalog.json").read_text(encoding="utf-8"))
 LOOT_ITEMS = LOOT_CATALOG["items"]
 LOOT_ITEM_MAP = {item["key"]: item for item in LOOT_ITEMS}
@@ -114,7 +118,7 @@ FRONTEND_ORIGINS = LOCAL_FRONTEND_ORIGINS | {
     if origin.strip()
 }
 ADMIN_OWNER_USERNAME = "tiago"
-ADMIN_PERMISSIONS = ("view_players", "change_balance", "rename_players", "suspend_players")
+ADMIN_PERMISSIONS = ("view_players", "change_balance", "change_own_balance", "rename_players", "suspend_players")
 SESSION_DAYS = parse_int(os.environ.get("SESSION_DAYS"), 30, 1, 365)
 BCRYPT_ROUNDS = parse_int(os.environ.get("BCRYPT_ROUNDS"), 12, 10, 15)
 
@@ -151,7 +155,14 @@ CREATE TABLE IF NOT EXISTS users (
  avatar_filename TEXT);
 CREATE TABLE IF NOT EXISTS sessions (
  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
- token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, last_used_at TEXT NOT NULL);
+ token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, last_used_at TEXT NOT NULL, ip_address TEXT);
+CREATE TABLE IF NOT EXISTS user_ips (
+ user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, ip_address TEXT NOT NULL,
+ first_seen_at TEXT NOT NULL, PRIMARY KEY(user_id,ip_address));
+CREATE TABLE IF NOT EXISTS ip_bans (
+ user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, ip_address TEXT NOT NULL,
+ reason TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(user_id,ip_address));
+CREATE INDEX IF NOT EXISTS idx_ip_bans_address ON ip_bans(ip_address);
 CREATE TABLE IF NOT EXISTS balances (
  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, amount REAL NOT NULL DEFAULT 1000 CHECK (amount >= 0), updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS player_stats (
@@ -226,6 +237,8 @@ def initialise_database(app: Flask) -> None:
     with app.app_context():
         db = get_db()
         db.executescript(SCHEMA + market.SCHEMA + poker.SCHEMA)
+        if "ip_address" not in {row["name"] for row in db.execute("PRAGMA table_info(sessions)")}:
+            db.execute("ALTER TABLE sessions ADD COLUMN ip_address TEXT")
         with transaction():
             if "item_key" not in {row["name"] for row in db.execute("PRAGMA table_info(loot_openings)")}:
                 db.execute("ALTER TABLE loot_openings ADD COLUMN item_key TEXT")
@@ -278,6 +291,30 @@ def new_token() -> str:
 
 def normalise(username: str) -> str:
     return username.lower()
+
+
+def client_ip() -> str | None:
+    # PythonAnywhere setzt X-Real-IP; remote_addr ist dort nur der interne Loadbalancer.
+    value = request.headers.get("X-Real-IP") if os.environ.get("NODE_ENV") == "production" else request.remote_addr
+    try:
+        return str(ipaddress.ip_address(value)) if value else None
+    except ValueError:
+        return None
+
+
+def remember_user_ip(user_id: int, address: str | None, suspended: bool = False, reason: str = "") -> None:
+    if not address:
+        return
+    db = get_db()
+    now = utc_now()
+    db.execute("INSERT OR IGNORE INTO user_ips (user_id,ip_address,first_seen_at) VALUES (?,?,?)", (user_id,address,now))
+    if suspended:
+        db.execute("INSERT OR IGNORE INTO ip_bans (user_id,ip_address,reason,created_at) VALUES (?,?,?,?)", (user_id,address,reason,now))
+
+
+def reject_banned_ip(address: str | None) -> None:
+    if address and get_db().execute("SELECT 1 FROM ip_bans WHERE ip_address=? LIMIT 1",(address,)).fetchone():
+        raise ApiError(403,"Diese IP-Adresse wurde gesperrt.",{"suspended":True,"reason":"IP-Adresse gesperrt."})
 
 
 def positive_int(value: str | None, fallback: int, maximum: int | None = None) -> int:
@@ -333,7 +370,7 @@ def auth_required(view):
             raise ApiError(401, "Bitte erneut anmelden.")
         db = get_db()
         session = db.execute(
-            """SELECT s.id AS session_id,s.user_id,s.expires_at,s.last_used_at,u.username,u.last_activity_at,
+            """SELECT s.id AS session_id,s.user_id,s.expires_at,s.last_used_at,s.ip_address,u.username,u.last_activity_at,
                       u.is_suspended,u.suspension_reason,b.amount AS balance
                FROM sessions s JOIN users u ON u.id=s.user_id JOIN balances b ON b.user_id=u.id WHERE s.token_hash=?""",
             (token_hash(token),),
@@ -342,8 +379,14 @@ def auth_required(view):
             if session:
                 db.execute("DELETE FROM sessions WHERE id=?", (session["session_id"],))
             raise ApiError(401, "Die Sitzung ist abgelaufen. Bitte erneut anmelden.")
+        address=client_ip()
+        if address and address!=session["ip_address"]:
+            db.execute("UPDATE sessions SET ip_address=? WHERE id=?",(address,session["session_id"]))
+            remember_user_ip(session["user_id"],address,bool(session["is_suspended"]),session["suspension_reason"] or "")
         if session["is_suspended"]:
             raise ApiError(403, "Dieses Spielerkonto wurde gesperrt.", {"suspended": True, "reason": session["suspension_reason"] or "Kein Grund angegeben."})
+        if normalise(session["username"])!=ADMIN_OWNER_USERNAME:
+            reject_banned_ip(address)
         restore_empty_balance(session["user_id"])
         g.auth = dict(session)
         now = utc_now()
@@ -654,8 +697,10 @@ def image_extension(content: bytes) -> str | None:
 def issue_session(user_id):
     token, now = new_token(), datetime.now(timezone.utc)
     expires = now + timedelta(days=SESSION_DAYS)
-    get_db().execute("INSERT INTO sessions (user_id,token_hash,created_at,expires_at,last_used_at) VALUES (?,?,?,?,?)",
-                     (user_id, token_hash(token), now.isoformat(timespec="milliseconds").replace("+00:00","Z"), expires.isoformat(timespec="milliseconds").replace("+00:00","Z"), now.isoformat(timespec="milliseconds").replace("+00:00","Z")))
+    address=client_ip()
+    get_db().execute("INSERT INTO sessions (user_id,token_hash,created_at,expires_at,last_used_at,ip_address) VALUES (?,?,?,?,?,?)",
+                     (user_id, token_hash(token), now.isoformat(timespec="milliseconds").replace("+00:00","Z"), expires.isoformat(timespec="milliseconds").replace("+00:00","Z"), now.isoformat(timespec="milliseconds").replace("+00:00","Z"),address))
+    remember_user_ip(user_id,address)
     return token, expires.isoformat(timespec="milliseconds").replace("+00:00","Z")
 
 
@@ -732,6 +777,7 @@ def make_app():
 
     @app.post("/api/auth/register")
     def register():
+        reject_banned_ip(client_ip())
         payload = body(); username, normalized = validate_credentials(payload.get("username"),payload.get("password"))
         password_hash = bcrypt.hashpw(payload["password"].encode(),bcrypt.gensalt(rounds=BCRYPT_ROUNDS)).decode()
         try:
@@ -749,7 +795,11 @@ def make_app():
         user=get_db().execute("SELECT u.id,u.username,u.password_hash,u.is_suspended,u.suspension_reason,b.amount AS balance FROM users u JOIN balances b ON b.user_id=u.id WHERE u.username_normalized=?",(normalise(username),)).fetchone()
         fallback=b"$2b$12$C6UzMDM.H6dfI/f/IKcEe.5ZxQwDPZ9vtQd0Z4E4YW/.GQqX9vJ6G"
         if not bcrypt.checkpw(password.encode(), (user["password_hash"].encode() if user else fallback)): raise ApiError(401,"Benutzername oder Passwort ist falsch.")
-        if user["is_suspended"]: raise ApiError(403,"Dieses Spielerkonto wurde gesperrt.",{"suspended":True,"reason":user["suspension_reason"] or "Kein Grund angegeben."})
+        if user["is_suspended"]:
+            remember_user_ip(user["id"],client_ip(),True,user["suspension_reason"] or "")
+            raise ApiError(403,"Dieses Spielerkonto wurde gesperrt.",{"suspended":True,"reason":user["suspension_reason"] or "Kein Grund angegeben."})
+        if normalise(user["username"])!=ADMIN_OWNER_USERNAME:
+            reject_banned_ip(client_ip())
         balance = restore_empty_balance(user["id"])
         token,expires=issue_session(user["id"])
         return ok({"token":token,"expiresAt":expires,"user":{"username":user["username"],"balance":balance}},"Angemeldet.")
@@ -1020,6 +1070,11 @@ def make_app():
             record_big_win(db,user_id,"Slots",net,bet)
         return ok({"symbols": symbols, "multiplier": multiplier, "payout": payout, "balance": after})
 
+    @app.get("/api/pinball/config")
+    @auth_required
+    def pinball_config():
+        return ok({"multipliers":PINBALL_MULTIPLIERS,"slotWeights":PINBALL_SLOT_WEIGHTS,"totalWeight":sum(PINBALL_SLOT_WEIGHTS)})
+
     @app.post("/api/pinball/play")
     @auth_required
     def pinball_play():
@@ -1054,7 +1109,7 @@ def make_app():
                           total_won=total_won+?,total_lost=total_lost+? WHERE user_id=?""",
                        (int(net>0), int(net<0), after, max(0,net), max(0,net), max(0,-net), user_id))
             record_big_win(db, user_id, "Pinball", net, bet)
-        return ok({"path": path, "slot": slot, "multiplier": PINBALL_MULTIPLIERS[slot], "multipliers": PINBALL_MULTIPLIERS, "payout": payout, "netResult": net, "balance": after})
+        return ok({"path": path, "slot": slot, "multiplier": PINBALL_MULTIPLIERS[slot], "multipliers": PINBALL_MULTIPLIERS, "slotWeights": PINBALL_SLOT_WEIGHTS, "payout": payout, "netResult": net, "balance": after})
 
     @app.get("/api/chicken/current")
     @auth_required
@@ -1209,9 +1264,21 @@ def make_app():
         return ok({"creditedSeconds":credited})
 
     @app.get("/api/admin/me")
-    @admin_required("view_players")
+    @admin_required()
     def admin_me():
-        return ok({"username": g.auth["username"], **g.admin})
+        return ok({"userId":g.auth["user_id"],"username":g.auth["username"], **g.admin})
+
+    @app.get("/api/admin/users")
+    @admin_required(owner=True)
+    def admin_user_search():
+        search=request.args.get("search","").strip().lower()[:20]
+        if len(search)<2: return ok({"users":[]})
+        rows=get_db().execute("""SELECT u.id,u.username,m.user_id IS NOT NULL AS is_moderator
+            FROM users u LEFT JOIN moderators m ON m.user_id=u.id
+            WHERE u.username_normalized LIKE ? AND u.username_normalized<>?
+            ORDER BY CASE WHEN u.username_normalized=? THEN 0 ELSE 1 END,u.username_normalized LIMIT 8""",
+            (f"%{search}%",ADMIN_OWNER_USERNAME,search)).fetchall()
+        return ok({"users":[{"id":row["id"],"username":row["username"],"isModerator":bool(row["is_moderator"])} for row in rows]})
 
     @app.get("/api/admin/moderators")
     @admin_required(owner=True)
@@ -1224,8 +1291,8 @@ def make_app():
     def save_moderator(username):
         if not USERNAME_RE.fullmatch(username): raise ApiError(400,"Ungültiger Benutzername.")
         permissions=body().get("permissions")
-        if not isinstance(permissions,list) or not permissions or len(permissions)!=len(set(str(key) for key in permissions)) or any(not isinstance(key,str) or key not in ADMIN_PERMISSIONS for key in permissions) or "view_players" not in permissions:
-            raise ApiError(400,"Wähle gültige Rechte einschließlich Spieler ansehen.")
+        if not isinstance(permissions,list) or not permissions or len(permissions)!=len(set(str(key) for key in permissions)) or any(not isinstance(key,str) or key not in ADMIN_PERMISSIONS for key in permissions) or ("view_players" not in permissions and set(permissions)!={"change_own_balance"}):
+            raise ApiError(400,"Wähle gültige Rechte. Ohne Spieleransicht ist nur das eigene Guthaben möglich.")
         with transaction() as db:
             user=db.execute("SELECT id,username FROM users WHERE username_normalized=?",(normalise(username),)).fetchone()
             if not user: raise ApiError(404,"Spieler nicht gefunden.")
@@ -1247,11 +1314,16 @@ def make_app():
         return ok(message="Moderator entfernt.")
 
     @app.get("/api/admin/players")
-    @admin_required("view_players")
+    @admin_required()
     def admin_players():
-        page=positive_int(request.args.get("page"),1); search=request.args.get("search","").strip()[:20].lower(); limit=50; db=get_db(); total=db.execute("SELECT COUNT(*) AS n FROM users WHERE username_normalized LIKE ?",(f"%{search}%",)).fetchone()["n"]; pages=max(1,(total+limit-1)//limit); page=min(page,pages)
-        rows=db.execute("""SELECT u.id,u.username,u.created_at,u.last_activity_at,u.is_suspended,u.suspension_reason,u.suspended_at,b.amount AS balance,s.rounds_played,s.wins,s.losses,EXISTS(SELECT 1 FROM active_rounds r WHERE r.user_id=u.id) AS has_active_round FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id WHERE u.username_normalized LIKE ? ORDER BY u.username_normalized LIMIT ? OFFSET ?""",(f"%{search}%",limit,(page-1)*limit)).fetchall()
-        players=[{"id":r["id"],"username":r["username"],"balance":r["balance"],"roundsPlayed":r["rounds_played"],"wins":r["wins"],"losses":r["losses"],"suspended":bool(r["is_suspended"]),"suspensionReason":r["suspension_reason"],"suspendedAt":r["suspended_at"],"hasActiveRound":bool(r["has_active_round"]),"createdAt":r["created_at"],"lastActivityAt":r["last_activity_at"]} for r in rows]
+        page=positive_int(request.args.get("page"),1); search=request.args.get("search","").strip()[:20].lower(); limit=15; db=get_db()
+        own_only="view_players" not in g.admin["permissions"]
+        if own_only and "change_own_balance" not in g.admin["permissions"]: raise ApiError(403,"Für die Spielerliste fehlt die Berechtigung.")
+        where="u.id=?" if own_only else "u.username_normalized LIKE ?"
+        parameter=g.auth["user_id"] if own_only else f"%{search}%"
+        total=db.execute(f"SELECT COUNT(*) AS n FROM users u WHERE {where}",(parameter,)).fetchone()["n"]; pages=max(1,(total+limit-1)//limit); page=min(page,pages)
+        rows=db.execute(f"""SELECT u.id,u.username,u.created_at,u.last_activity_at,u.is_suspended,u.suspension_reason,u.suspended_at,b.amount AS balance,s.rounds_played,s.wins,s.losses,EXISTS(SELECT 1 FROM active_rounds r WHERE r.user_id=u.id) AS has_active_round,(SELECT COUNT(*) FROM user_ips i WHERE i.user_id=u.id) AS known_ip_count FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id WHERE {where} ORDER BY u.username_normalized LIMIT ? OFFSET ?""",(parameter,limit,(page-1)*limit)).fetchall()
+        players=[{"id":r["id"],"username":r["username"],"balance":r["balance"],"roundsPlayed":r["rounds_played"],"wins":r["wins"],"losses":r["losses"],"suspended":bool(r["is_suspended"]),"suspensionReason":r["suspension_reason"],"suspendedAt":r["suspended_at"],"hasActiveRound":bool(r["has_active_round"]),"knownIpCount":r["known_ip_count"],"createdAt":r["created_at"],"lastActivityAt":r["last_activity_at"]} for r in rows]
         return ok({"players":players,"pagination":{"page":page,"limit":limit,"total":total,"totalPages":pages}})
 
     def admin_player_id(value):
@@ -1261,9 +1333,11 @@ def make_app():
         return player_id
 
     @app.patch("/api/admin/players/<id>/balance")
-    @admin_required("change_balance")
+    @admin_required()
     def set_balance(id):
         payload=body(); player_id=admin_player_id(id)
+        if "change_balance" not in g.admin["permissions"] and not ("change_own_balance" in g.admin["permissions"] and player_id==g.auth["user_id"]):
+            raise ApiError(403,"Du darfst nur dein eigenes Guthaben ändern.")
         try: amount=float(payload.get("amount"))
         except (ValueError,TypeError): amount=-1
         reason=payload.get("reason",""); reason=reason.strip()[:300] if isinstance(reason,str) else ""
@@ -1301,8 +1375,37 @@ def make_app():
             if not player: raise ApiError(404,"Spieler nicht gefunden.")
             owner=db.execute("SELECT username_normalized FROM users WHERE id=?",(player_id,)).fetchone()
             if owner["username_normalized"]==ADMIN_OWNER_USERNAME: raise ApiError(403,"Tiago kann nicht gesperrt werden.")
-            now=utc_now(); db.execute("UPDATE users SET is_suspended=?,suspension_reason=?,suspended_at=? WHERE id=?",(int(suspended),reason if suspended else None,now if suspended else None,player_id)); audit(player_id,"suspend" if suspended else "unsuspend",{"suspended":bool(player["is_suspended"]),"reason":player["suspension_reason"]},{"suspended":suspended,"reason":reason if suspended else None},reason if suspended else None)
+            now=utc_now(); db.execute("UPDATE users SET is_suspended=?,suspension_reason=?,suspended_at=? WHERE id=?",(int(suspended),reason if suspended else None,now if suspended else None,player_id))
+            if suspended:
+                db.execute("INSERT OR IGNORE INTO ip_bans (user_id,ip_address,reason,created_at) SELECT user_id,ip_address,?,? FROM user_ips WHERE user_id=?",(reason,now,player_id))
+            else:
+                db.execute("DELETE FROM ip_bans WHERE user_id=?",(player_id,))
+            audit(player_id,"suspend" if suspended else "unsuspend",{"suspended":bool(player["is_suspended"]),"reason":player["suspension_reason"]},{"suspended":suspended,"reason":reason if suspended else None},reason if suspended else None)
         return ok({"suspended":suspended,"reason":reason if suspended else None},"Spieler gesperrt." if suspended else "Sperre aufgehoben.")
+
+    @app.delete("/api/admin/players/<id>")
+    @admin_required(owner=True)
+    def delete_player(id):
+        player_id=admin_player_id(id)
+        confirmation=body().get("confirmUsername")
+        with transaction() as db:
+            player=db.execute("SELECT username,avatar_filename FROM users WHERE id=?",(player_id,)).fetchone()
+            if not player: raise ApiError(404,"Spieler nicht gefunden.")
+            if normalise(player["username"])==ADMIN_OWNER_USERNAME: raise ApiError(403,"Tiago kann nicht gelöscht werden.")
+            if confirmation!=player["username"]: raise ApiError(400,"Bestätige die Löschung mit dem exakten Benutzernamen.")
+            membership=db.execute("SELECT m.lobby_code,l.state_json FROM poker_members m JOIN poker_lobbies l ON l.code=m.lobby_code WHERE m.user_id=?",(player_id,)).fetchone()
+            if membership:
+                state=json.loads(membership["state_json"])
+                if state.get("status")=="playing":
+                    for member_id,amount in state["hand"]["invested"].items():
+                        db.execute("UPDATE balances SET amount=amount+?,updated_at=? WHERE user_id=?",(amount,utc_now(),int(member_id)))
+                db.execute("DELETE FROM poker_lobbies WHERE code=?",(membership["lobby_code"],))
+            db.execute("DELETE FROM market_trades WHERE seller_id=? OR buyer_id=?",(player_id,player_id))
+            db.execute("DELETE FROM users WHERE id=?",(player_id,))
+        if player["avatar_filename"]:
+            avatar=AVATAR_DIRECTORY / player["avatar_filename"]
+            if avatar.is_file(): avatar.unlink()
+        return ok(message="Spieler und alle zugehörigen Daten gelöscht.")
 
     market.install(app, globals())
     poker.install(app, globals())
