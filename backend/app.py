@@ -38,9 +38,9 @@ CHICKEN_MULTIPLIERS = (0.8, 1.0, 2.4, 3.0, 3.8, 4.8, 6.0, 7.5, 9.5)
 CHICKEN_SUCCESS_CHANCES = (90, 85, 80, 75, 70, 65, 60, 55, 50)
 PINBALL_MULTIPLIERS = (200, 74, 12, 3.6, 1.5, 0.8, 0.3, 0.8, 1.5, 3.6, 12, 74, 200)
 # Ten thousand equally likely outcomes, mirrored around the centre field.
-# 65% chance of a net win, 25% on 0.8×, 10% on 0.3×.
-# Expected payout is 128.23% of the stake with these requested odds.
-PINBALL_SLOT_WEIGHTS = (1, 1, 1, 50, 3197, 1250, 1000, 1250, 3197, 50, 1, 1, 1)
+# 65% chance of a net win. Winning slots become roughly ten times rarer per tier.
+# Expected payout is 147.72% of the stake with these requested odds.
+PINBALL_SLOT_WEIGHTS = (1, 3, 30, 300, 2916, 1250, 1000, 1250, 2916, 300, 30, 3, 1)
 if len(PINBALL_MULTIPLIERS) != len(PINBALL_SLOT_WEIGHTS) or sum(PINBALL_SLOT_WEIGHTS) != 10_000:
     raise RuntimeError("Ungültige Pinball-Gewinnverteilung.")
 LOOT_CATALOG = json.loads((BASE_DIR / "loot_catalog.json").read_text(encoding="utf-8"))
