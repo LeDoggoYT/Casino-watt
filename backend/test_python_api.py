@@ -10,9 +10,8 @@ for suffix in ("", "-shm", "-wal"):
     TEMP_DB.with_name(TEMP_DB.name + suffix).unlink(missing_ok=True)
 os.environ["DATABASE_PATH"] = str(TEMP_DB)
 os.environ["NODE_ENV"] = "development"
-os.environ["ADMIN_PASSWORD"] = "2011"
 
-from app import app, get_db, outcome as determine_outcome, hand_value, blackjack as is_blackjack  # noqa: E402
+from app import app, get_db, RATE_BUCKETS, outcome as determine_outcome, hand_value, blackjack as is_blackjack  # noqa: E402
 
 
 class WattCasinoApiTests(unittest.TestCase):
@@ -217,12 +216,20 @@ class WattCasinoApiTests(unittest.TestCase):
 
     def setUp(self):
         self.client = app.test_client()
+        RATE_BUCKETS.clear()
 
     def request(self, method, path, payload=None, token=None):
         headers = {"Origin": "http://127.0.0.1:8080"}
         if token:
             headers["Authorization"] = f"Bearer {token}"
         return self.client.open(path, method=method, json=payload, headers=headers)
+
+    def admin_token(self):
+        credentials = {"username": "Tiago", "password": "SicheresTestpasswort9"}
+        response = self.request("POST", "/api/auth/register", credentials)
+        if response.status_code == 409:
+            response = self.request("POST", "/api/auth/login", credentials)
+        return response.get_json()["data"]["token"]
 
     @staticmethod
     def non_terminal_shoe():
@@ -312,9 +319,7 @@ class WattCasinoApiTests(unittest.TestCase):
         self.assertEqual(resumed_data["game"]["round"]["id"], game.get_json()["data"]["round"]["id"])
         self.assertEqual(resumed_data["game"]["balance"], 975)
 
-        admin = self.request("POST", "/api/admin/login", {"password": "2011"})
-        self.assertEqual(admin.status_code, 200)
-        admin_token = admin.get_json()["data"]["token"]
+        admin_token = self.admin_token()
         players = self.request("GET", "/api/admin/players", token=admin_token).get_json()["data"]["players"]
         player_id = next(row["id"] for row in players if row["username"] == "PythonPlayer")
 
@@ -341,6 +346,28 @@ class WattCasinoApiTests(unittest.TestCase):
         )
         self.assertEqual(preflight.status_code, 204)
         self.assertEqual(preflight.headers["Access-Control-Allow-Origin"], "http://127.0.0.1:8080")
+
+    def test_moderator_permissions_and_immediate_revocation(self):
+        owner = self.admin_token()
+        moderator = self.request("POST", "/api/auth/register", {"username": "ModRights", "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
+        target = self.request("POST", "/api/auth/register", {"username": "ModTarget", "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
+        self.assertEqual(self.request("POST", "/api/admin/login", {"password": "2011"}).status_code, 404)
+        self.assertEqual(self.request("GET", "/api/admin/players", token=moderator).status_code, 403)
+        granted = self.request("PUT", "/api/admin/moderators/ModRights", {"permissions": ["view_players", "suspend_players"]}, owner)
+        self.assertEqual(granted.status_code, 200)
+        self.assertEqual(self.request("GET", "/api/admin/me", token=moderator).get_json()["data"]["role"], "moderator")
+        self.assertEqual(self.request("GET", "/api/admin/players", token=moderator).status_code, 200)
+        self.assertEqual(self.request("GET", "/api/admin/moderators", token=moderator).status_code, 403)
+        with app.app_context():
+            target_id = get_db().execute("SELECT id FROM users WHERE username='ModTarget'").fetchone()["id"]
+            owner_id = get_db().execute("SELECT id FROM users WHERE username_normalized='tiago'").fetchone()["id"]
+        self.assertEqual(self.request("PATCH", f"/api/admin/players/{target_id}/balance", {"amount": 5000}, moderator).status_code, 403)
+        self.assertEqual(self.request("PATCH", f"/api/admin/players/{target_id}/username", {"username": "NewTarget"}, moderator).status_code, 403)
+        self.assertEqual(self.request("PATCH", f"/api/admin/players/{owner_id}/suspension", {"suspended": True, "reason": "Test"}, moderator).status_code, 403)
+        self.assertEqual(self.request("PATCH", f"/api/admin/players/{target_id}/suspension", {"suspended": True, "reason": "Test"}, moderator).status_code, 200)
+        self.assertEqual(self.request("GET", "/api/auth/me", token=target).status_code, 403)
+        self.assertEqual(self.request("DELETE", "/api/admin/moderators/ModRights", token=owner).status_code, 200)
+        self.assertEqual(self.request("GET", "/api/admin/players", token=moderator).status_code, 403)
 
     def test_avatar_upload_is_saved_and_publicly_served(self):
         player = {"username": "AvatarPlayer", "password": "SicheresTestpasswort9"}
@@ -468,7 +495,7 @@ class WattCasinoApiTests(unittest.TestCase):
     def test_luck_can_rescue_only_once_per_round(self):
         player = {"username": "LuckyPlayer", "password": "SicheresTestpasswort9"}
         token = self.request("POST", "/api/auth/register", player).get_json()["data"]["token"]
-        admin_token = self.request("POST", "/api/admin/login", {"password": "2011"}).get_json()["data"]["token"]
+        admin_token = self.admin_token()
         players = self.request("GET", "/api/admin/players", token=admin_token).get_json()["data"]["players"]
         player_id = next(row["id"] for row in players if row["username"] == "LuckyPlayer")
         funded = self.request(

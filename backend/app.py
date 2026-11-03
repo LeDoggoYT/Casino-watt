@@ -4,7 +4,6 @@ from __future__ import annotations
 import base64
 import functools
 import hashlib
-import hmac
 import json
 import math
 import os
@@ -114,9 +113,8 @@ FRONTEND_ORIGINS = LOCAL_FRONTEND_ORIGINS | {
     ).split(",")
     if origin.strip()
 }
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "2011")
-if os.environ.get("NODE_ENV") == "production" and not ADMIN_PASSWORD:
-    raise RuntimeError("ADMIN_PASSWORD muss gesetzt sein.")
+ADMIN_OWNER_USERNAME = "tiago"
+ADMIN_PERMISSIONS = ("view_players", "change_balance", "rename_players", "suspend_players")
 SESSION_DAYS = parse_int(os.environ.get("SESSION_DAYS"), 30, 1, 365)
 BCRYPT_ROUNDS = parse_int(os.environ.get("BCRYPT_ROUNDS"), 12, 10, 15)
 
@@ -206,8 +204,9 @@ CREATE TABLE IF NOT EXISTS user_upgrades (
  updated_at TEXT NOT NULL, PRIMARY KEY (user_id, upgrade_key), CHECK (level BETWEEN 0 AND 5));
 CREATE TABLE IF NOT EXISTS upgrade_claims (
  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, last_daily_claim_at TEXT);
-CREATE TABLE IF NOT EXISTS admin_sessions (
- id INTEGER PRIMARY KEY AUTOINCREMENT, token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, last_used_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS moderators (
+ user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+ permissions TEXT NOT NULL, granted_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS admin_audit_log (
  id INTEGER PRIMARY KEY AUTOINCREMENT, target_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  action TEXT NOT NULL, previous_value TEXT, new_value TEXT, reason TEXT, created_at TEXT NOT NULL);
@@ -219,7 +218,6 @@ CREATE INDEX IF NOT EXISTS idx_completed_user_date ON completed_rounds(user_id, 
 CREATE INDEX IF NOT EXISTS idx_action_requests_created ON action_requests(created_at);
 CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_upgrades_user ON user_upgrades(user_id);
-CREATE INDEX IF NOT EXISTS idx_admin_sessions_token ON admin_sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_admin_audit_target ON admin_audit_log(target_user_id, created_at DESC);
 """
 
@@ -366,27 +364,28 @@ def auth_required(view):
     return wrapped
 
 
-def admin_required(view):
-    @functools.wraps(view)
-    def wrapped(*args, **kwargs):
-        header = request.headers.get("Authorization", "")
-        scheme, _, token = header.partition(" ")
-        if scheme != "Bearer" or not token or len(token) > 200:
-            raise ApiError(401, "Admin-Anmeldung erforderlich.")
-        db = get_db()
-        session = db.execute("SELECT * FROM admin_sessions WHERE token_hash=?", (token_hash(token),)).fetchone()
-        if not session or session["expires_at"] <= utc_now():
-            if session:
-                db.execute("DELETE FROM admin_sessions WHERE id=?", (session["id"],))
-            raise ApiError(401, "Die Admin-Sitzung ist abgelaufen.")
-        g.admin = dict(session)
-        stale_before = (datetime.now(timezone.utc) - timedelta(seconds=AUTH_TOUCH_SECONDS)).isoformat(
-            timespec="milliseconds"
-        ).replace("+00:00", "Z")
-        if session["last_used_at"] < stale_before:
-            db.execute("UPDATE admin_sessions SET last_used_at=? WHERE id=?", (utc_now(), session["id"]))
-        return view(*args, **kwargs)
-    return wrapped
+def admin_access(user_id, username):
+    if normalise(username) == ADMIN_OWNER_USERNAME:
+        return {"role": "owner", "permissions": list(ADMIN_PERMISSIONS)}
+    row = get_db().execute("SELECT permissions FROM moderators WHERE user_id=?", (user_id,)).fetchone()
+    if not row:
+        return None
+    permissions = json.loads(row["permissions"])
+    return {"role": "moderator", "permissions": [key for key in ADMIN_PERMISSIONS if key in permissions]}
+
+
+def admin_required(permission=None, owner=False):
+    def decorate(view):
+        @functools.wraps(view)
+        @auth_required
+        def wrapped(*args, **kwargs):
+            access = admin_access(g.auth["user_id"], g.auth["username"])
+            if not access or (owner and access["role"] != "owner") or (permission and permission not in access["permissions"]):
+                raise ApiError(403, "Für diesen Bereich fehlt die Berechtigung.")
+            g.admin = access
+            return view(*args, **kwargs)
+        return wrapped
+    return decorate
 
 
 def create_shoe() -> list[dict]:
@@ -687,8 +686,6 @@ def make_app():
             enforce_rate_limit("api", 180, 60)
         if request.path in {"/api/auth/register", "/api/auth/login"}:
             enforce_rate_limit("auth", 20, 15 * 60)
-        if request.path == "/api/admin/login":
-            enforce_rate_limit("admin-login", 5, 15 * 60)
         # Aufräumen war vorher Teil jeder API-Anfrage und erzeugte damit unnötige
         # SQLite-Schreibsperren. Pro Worker genügt ein Lauf alle 15 Minuten.
         monotonic_now = time.monotonic()
@@ -698,7 +695,6 @@ def make_app():
                     now = utc_now()
                     db = get_db()
                     db.execute("DELETE FROM sessions WHERE expires_at<=?", (now,))
-                    db.execute("DELETE FROM admin_sessions WHERE expires_at<=?", (now,))
                     db.execute("DELETE FROM action_requests WHERE julianday(created_at)<julianday('now','-2 days')")
                     LAST_CLEANUP_AT = monotonic_now
 
@@ -708,7 +704,7 @@ def make_app():
         if origin in FRONTEND_ORIGINS:
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Vary"] = "Origin"
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, OPTIONS"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, PUT, DELETE, OPTIONS"
             response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
             response.headers["Access-Control-Max-Age"] = "86400"
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -770,7 +766,7 @@ def make_app():
         user=dict(row); user["avatarUrl"]=avatar_url(user.pop("avatar_filename"))
         active_round = load_round(g.auth["user_id"])
         game = {"round": public_round(active_round, row["balance"]) if active_round else None, "balance": row["balance"]}
-        return ok({"user":user, "game":game})
+        return ok({"user":user, "game":game, "adminAccess":admin_access(g.auth["user_id"], g.auth["username"])})
 
     @app.post("/api/profile/avatar")
     @auth_required
@@ -1212,20 +1208,46 @@ def make_app():
                 if credited: db.execute("UPDATE player_stats SET total_play_seconds=total_play_seconds+? WHERE user_id=?",(credited,g.auth["user_id"]))
         return ok({"creditedSeconds":credited})
 
-    @app.post("/api/admin/login")
-    def admin_login():
-        password=body().get("password","")
-        if not isinstance(password,str) or len(password)>128 or not hmac.compare_digest(hashlib.sha256(password.encode()).digest(),hashlib.sha256(ADMIN_PASSWORD.encode()).digest()): raise ApiError(401,"Das Admin-Passwort ist falsch.")
-        token=new_token(); now=datetime.now(timezone.utc); expires=now+timedelta(hours=8); now_s=now.isoformat(timespec="milliseconds").replace("+00:00","Z"); expires_s=expires.isoformat(timespec="milliseconds").replace("+00:00","Z")
-        get_db().execute("INSERT INTO admin_sessions (token_hash,created_at,expires_at,last_used_at) VALUES (?,?,?,?)",(token_hash(token),now_s,expires_s,now_s))
-        return ok({"token":token,"expiresAt":expires_s},"Admin-Sitzung gestartet.")
+    @app.get("/api/admin/me")
+    @admin_required("view_players")
+    def admin_me():
+        return ok({"username": g.auth["username"], **g.admin})
 
-    @app.post("/api/admin/logout")
-    @admin_required
-    def admin_logout(): get_db().execute("DELETE FROM admin_sessions WHERE id=?",(g.admin["id"],)); return ok(message="Admin-Sitzung beendet.")
+    @app.get("/api/admin/moderators")
+    @admin_required(owner=True)
+    def admin_moderators():
+        rows=get_db().execute("SELECT u.id,u.username,m.permissions FROM moderators m JOIN users u ON u.id=m.user_id ORDER BY u.username_normalized").fetchall()
+        return ok({"moderators":[{"id":row["id"],"username":row["username"],"permissions":json.loads(row["permissions"])} for row in rows],"availablePermissions":list(ADMIN_PERMISSIONS)})
+
+    @app.put("/api/admin/moderators/<username>")
+    @admin_required(owner=True)
+    def save_moderator(username):
+        if not USERNAME_RE.fullmatch(username): raise ApiError(400,"Ungültiger Benutzername.")
+        permissions=body().get("permissions")
+        if not isinstance(permissions,list) or not permissions or len(permissions)!=len(set(str(key) for key in permissions)) or any(not isinstance(key,str) or key not in ADMIN_PERMISSIONS for key in permissions) or "view_players" not in permissions:
+            raise ApiError(400,"Wähle gültige Rechte einschließlich Spieler ansehen.")
+        with transaction() as db:
+            user=db.execute("SELECT id,username FROM users WHERE username_normalized=?",(normalise(username),)).fetchone()
+            if not user: raise ApiError(404,"Spieler nicht gefunden.")
+            if normalise(user["username"])==ADMIN_OWNER_USERNAME: raise ApiError(400,"Tiago ist bereits Administrator.")
+            previous=db.execute("SELECT permissions FROM moderators WHERE user_id=?",(user["id"],)).fetchone()
+            now=utc_now()
+            db.execute("INSERT INTO moderators (user_id,permissions,granted_at,updated_at) VALUES (?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET permissions=excluded.permissions,updated_at=excluded.updated_at",(user["id"],json.dumps(permissions),now,now))
+            audit(user["id"],"moderator_permissions",json.loads(previous["permissions"]) if previous else None,permissions)
+        return ok({"id":user["id"],"username":user["username"],"permissions":permissions},"Moderatorrechte gespeichert.")
+
+    @app.delete("/api/admin/moderators/<username>")
+    @admin_required(owner=True)
+    def remove_moderator(username):
+        with transaction() as db:
+            previous=db.execute("SELECT m.user_id,m.permissions FROM moderators m JOIN users u ON u.id=m.user_id WHERE u.username_normalized=?",(normalise(username),)).fetchone()
+            if not previous: raise ApiError(404,"Moderator nicht gefunden.")
+            db.execute("DELETE FROM moderators WHERE user_id=?",(previous["user_id"],))
+            audit(previous["user_id"],"moderator_removed",json.loads(previous["permissions"]),None)
+        return ok(message="Moderator entfernt.")
 
     @app.get("/api/admin/players")
-    @admin_required
+    @admin_required("view_players")
     def admin_players():
         page=positive_int(request.args.get("page"),1); search=request.args.get("search","").strip()[:20].lower(); limit=50; db=get_db(); total=db.execute("SELECT COUNT(*) AS n FROM users WHERE username_normalized LIKE ?",(f"%{search}%",)).fetchone()["n"]; pages=max(1,(total+limit-1)//limit); page=min(page,pages)
         rows=db.execute("""SELECT u.id,u.username,u.created_at,u.last_activity_at,u.is_suspended,u.suspension_reason,u.suspended_at,b.amount AS balance,s.rounds_played,s.wins,s.losses,EXISTS(SELECT 1 FROM active_rounds r WHERE r.user_id=u.id) AS has_active_round FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id WHERE u.username_normalized LIKE ? ORDER BY u.username_normalized LIMIT ? OFFSET ?""",(f"%{search}%",limit,(page-1)*limit)).fetchall()
@@ -1239,7 +1261,7 @@ def make_app():
         return player_id
 
     @app.patch("/api/admin/players/<id>/balance")
-    @admin_required
+    @admin_required("change_balance")
     def set_balance(id):
         payload=body(); player_id=admin_player_id(id)
         try: amount=float(payload.get("amount"))
@@ -1254,7 +1276,7 @@ def make_app():
         return ok({"balance":amount},"Guthaben aktualisiert.")
 
     @app.patch("/api/admin/players/<id>/username")
-    @admin_required
+    @admin_required("rename_players")
     def rename(id):
         payload=body(); player_id=admin_player_id(id); username=payload.get("username","").strip() if isinstance(payload.get("username"),str) else ""
         if not USERNAME_RE.fullmatch(username): raise ApiError(400,"Der Benutzername muss 3–20 Zeichen lang sein und darf Buchstaben, Zahlen, _ und - enthalten.")
@@ -1262,12 +1284,14 @@ def make_app():
             with transaction() as db:
                 player=db.execute("SELECT username FROM users WHERE id=?",(player_id,)).fetchone()
                 if not player: raise ApiError(404,"Spieler nicht gefunden.")
+                if normalise(player["username"])==ADMIN_OWNER_USERNAME or normalise(username)==ADMIN_OWNER_USERNAME:
+                    raise ApiError(403,"Der Administratorname Tiago kann nicht geändert oder vergeben werden.")
                 db.execute("UPDATE users SET username=?,username_normalized=? WHERE id=?",(username,normalise(username),player_id)); audit(player_id,"username",player["username"],username)
         except sqlite3.IntegrityError: raise ApiError(409,"Dieser Benutzername ist bereits vergeben.")
         return ok({"username":username},"Benutzername aktualisiert.")
 
     @app.patch("/api/admin/players/<id>/suspension")
-    @admin_required
+    @admin_required("suspend_players")
     def suspension(id):
         payload=body(); player_id=admin_player_id(id); suspended=payload.get("suspended"); reason=payload.get("reason","").strip() if isinstance(payload.get("reason"),str) else ""
         if not isinstance(suspended,bool): raise ApiError(400,"Der Sperrstatus fehlt.")
@@ -1275,6 +1299,8 @@ def make_app():
         with transaction() as db:
             player=db.execute("SELECT is_suspended,suspension_reason FROM users WHERE id=?",(player_id,)).fetchone()
             if not player: raise ApiError(404,"Spieler nicht gefunden.")
+            owner=db.execute("SELECT username_normalized FROM users WHERE id=?",(player_id,)).fetchone()
+            if owner["username_normalized"]==ADMIN_OWNER_USERNAME: raise ApiError(403,"Tiago kann nicht gesperrt werden.")
             now=utc_now(); db.execute("UPDATE users SET is_suspended=?,suspension_reason=?,suspended_at=? WHERE id=?",(int(suspended),reason if suspended else None,now if suspended else None,player_id)); audit(player_id,"suspend" if suspended else "unsuspend",{"suspended":bool(player["is_suspended"]),"reason":player["suspension_reason"]},{"suspended":suspended,"reason":reason if suspended else None},reason if suspended else None)
         return ok({"suspended":suspended,"reason":reason if suspended else None},"Spieler gesperrt." if suspended else "Sperre aufgehoben.")
 
