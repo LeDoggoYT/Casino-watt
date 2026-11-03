@@ -180,6 +180,12 @@ CREATE TABLE IF NOT EXISTS active_chicken_rounds (
  id TEXT PRIMARY KEY, user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
  bet REAL NOT NULL CHECK (bet >= 5), steps INTEGER NOT NULL DEFAULT 0 CHECK (steps BETWEEN 0 AND 10),
  created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS active_mines_rounds (
+ id TEXT PRIMARY KEY, user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+ bet REAL NOT NULL CHECK (bet >= 5), mine_count INTEGER NOT NULL CHECK (mine_count BETWEEN 1 AND 20),
+ mines_json TEXT NOT NULL, revealed_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS last_mines_results (
+ user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, result_json TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS loot_openings (
  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  box_key TEXT NOT NULL, price REAL NOT NULL, payout REAL NOT NULL, reward_index INTEGER NOT NULL, created_at TEXT NOT NULL);
@@ -356,9 +362,10 @@ def restore_empty_balance(user_id):
                   updated_at=? WHERE user_id=? AND amount=0
                   AND NOT EXISTS (SELECT 1 FROM active_rounds WHERE user_id=?)
                   AND NOT EXISTS (SELECT 1 FROM active_chicken_rounds WHERE user_id=?)
+                  AND NOT EXISTS (SELECT 1 FROM active_mines_rounds WHERE user_id=?)
                   AND NOT EXISTS (SELECT 1 FROM poker_members m JOIN poker_lobbies l ON l.code=m.lobby_code WHERE m.user_id=? AND json_extract(l.state_json,'$.status')='playing')
                   AND NOT EXISTS (SELECT 1 FROM crash_bets WHERE user_id=? AND payout IS NULL)""",
-               (user_id, utc_now(), user_id, user_id, user_id, user_id, user_id))
+               (user_id, utc_now(), user_id, user_id, user_id, user_id, user_id, user_id))
     return db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
 
 
@@ -561,9 +568,12 @@ def register_action(user_id, action_id, action_type):
         JOIN poker_lobbies l ON l.code=m.lobby_code WHERE m.user_id=?
         AND json_extract(l.state_json,'$.status')='playing'""", (user_id,)).fetchone():
         raise ApiError(409, "Beende zuerst deine Poker-Runde.")
-    if action_type in {"start", "chicken-start", "pinball-play", "slots-play", "loot-open"}:
+    if action_type in {"start", "chicken-start", "pinball-play", "slots-play", "loot-open", "mines-start"}:
         if get_db().execute("SELECT 1 FROM crash_bets WHERE user_id=? AND payout IS NULL", (user_id,)).fetchone():
             raise ApiError(409, "Beende zuerst deine Crash-Runde.")
+    if action_type in {"start", "chicken-start", "pinball-play", "slots-play", "loot-open", "crash-bet"}:
+        if get_db().execute("SELECT 1 FROM active_mines_rounds WHERE user_id=?", (user_id,)).fetchone():
+            raise ApiError(409, "Beende zuerst deine Mines-Runde.")
     if not isinstance(action_id, str) or not ACTION_RE.fullmatch(action_id):
         raise ApiError(400, "Für diese Aktion fehlt eine gültige Aktions-ID.")
     try:
@@ -1111,6 +1121,111 @@ def make_app():
                        (int(net>0), int(net<0), after, max(0,net), max(0,net), max(0,-net), user_id))
             record_big_win(db, user_id, "Pinball", net, bet)
         return ok({"path": path, "slot": slot, "multiplier": PINBALL_MULTIPLIERS[slot], "multipliers": PINBALL_MULTIPLIERS, "slotWeights": PINBALL_SLOT_WEIGHTS, "payout": payout, "netResult": net, "balance": after})
+
+    def mines_multiplier(mine_count, opened):
+        return round(0.97 * math.comb(25, opened) / math.comb(25 - mine_count, opened), 4) if opened else 1.0
+
+    def mines_data(row, balance, result=None):
+        if not row:
+            return {"round": None, "balance": balance, "result": result}
+        revealed = json.loads(row["revealed_json"])
+        multiplier = mines_multiplier(row["mine_count"], len(revealed))
+        payout = math.floor(row["bet"] * multiplier * 2) / 2 if revealed else 0
+        return {"round": {"bet": row["bet"], "mineCount": row["mine_count"], "revealed": revealed,
+                           "multiplier": multiplier, "payout": payout}, "balance": balance, "result": result}
+
+    def finish_mines(db, row, won, opened_tile=None):
+        user_id, bet = row["user_id"], row["bet"]
+        revealed = json.loads(row["revealed_json"])
+        multiplier = mines_multiplier(row["mine_count"], len(revealed)) if won else 0
+        payout = math.floor(bet * multiplier * 2) / 2 if won else 0
+        db.execute("DELETE FROM active_mines_rounds WHERE user_id=?", (user_id,))
+        db.execute("UPDATE balances SET amount=amount+?,updated_at=? WHERE user_id=?", (payout, utc_now(), user_id))
+        after = restore_empty_balance(user_id)
+        net = payout - bet
+        stats = db.execute("SELECT current_streak FROM player_stats WHERE user_id=?", (user_id,)).fetchone()
+        streak = max(0, stats["current_streak"]) + 1 if net > 0 else min(0, stats["current_streak"]) - 1 if net < 0 else stats["current_streak"]
+        db.execute("""UPDATE player_stats SET rounds_played=rounds_played+1,wins=wins+?,losses=losses+?,pushes=pushes+?,
+                      highest_balance=MAX(highest_balance,?),biggest_win=MAX(biggest_win,?),
+                      total_won=total_won+?,total_lost=total_lost+?,current_streak=?,best_win_streak=MAX(best_win_streak,?)
+                      WHERE user_id=?""", (int(net > 0), int(net < 0), int(net == 0), after, max(0, net),
+                                          max(0, net), max(0, -net), streak, max(0, streak), user_id))
+        record_big_win(db, user_id, "Mines", net, bet)
+        result = {"won": won, "tile": opened_tile, "mines": json.loads(row["mines_json"]),
+                  "revealed": revealed, "payout": payout, "multiplier": multiplier, "netResult": net,
+                  "mineCount": row["mine_count"]}
+        db.execute("INSERT INTO last_mines_results(user_id,result_json,created_at) VALUES (?,?,?) "
+                   "ON CONFLICT(user_id) DO UPDATE SET result_json=excluded.result_json,created_at=excluded.created_at",
+                   (user_id, json.dumps(result), utc_now()))
+        return mines_data(None, after, result)
+
+    @app.get("/api/mines/current")
+    @auth_required
+    def mines_current():
+        user_id = g.auth["user_id"]
+        row = get_db().execute("SELECT * FROM active_mines_rounds WHERE user_id=?", (user_id,)).fetchone()
+        balance = get_db().execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
+        last = get_db().execute("SELECT result_json FROM last_mines_results WHERE user_id=?", (user_id,)).fetchone()
+        return ok(mines_data(row, balance, json.loads(last["result_json"]) if not row and last else None))
+
+    @app.post("/api/mines/start")
+    @auth_required
+    def mines_start():
+        payload = body()
+        bet, mine_count = payload.get("bet"), payload.get("mineCount")
+        if type(bet) not in (float, int) or not 5 <= bet <= 1_000_000_000 or bet * 2 != round(bet * 2):
+            raise ApiError(400, "Mindestens 5 Chips in 0,5er-Schritten einsetzen.")
+        if type(mine_count) is not int or not 1 <= mine_count <= 20:
+            raise ApiError(400, "Wähle 1 bis 20 Minen.")
+        with transaction() as db:
+            user_id = g.auth["user_id"]
+            register_action(user_id, payload.get("actionId"), "mines-start")
+            if load_round(user_id) or db.execute("SELECT 1 FROM active_chicken_rounds WHERE user_id=?", (user_id,)).fetchone() or db.execute("SELECT 1 FROM active_mines_rounds WHERE user_id=?", (user_id,)).fetchone():
+                raise ApiError(409, "Beende zuerst deine laufende Runde.")
+            balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
+            if bet > balance: raise ApiError(400, "Nicht genügend Chips.")
+            mines = secrets.SystemRandom().sample(range(25), mine_count)
+            db.execute("DELETE FROM last_mines_results WHERE user_id=?", (user_id,))
+            db.execute("UPDATE balances SET amount=amount-?,updated_at=? WHERE user_id=?", (bet, utc_now(), user_id))
+            db.execute("INSERT INTO active_mines_rounds(id,user_id,bet,mine_count,mines_json,revealed_json,created_at) VALUES (?,?,?,?,?,'[]',?)",
+                       (str(uuid.uuid4()), user_id, bet, mine_count, json.dumps(mines), utc_now()))
+            row = db.execute("SELECT * FROM active_mines_rounds WHERE user_id=?", (user_id,)).fetchone()
+        return ok(mines_data(row, balance - bet), "Mines-Runde gestartet.", 201)
+
+    @app.post("/api/mines/reveal")
+    @auth_required
+    def mines_reveal():
+        payload = body()
+        tile = payload.get("tile")
+        if type(tile) is not int or not 0 <= tile < 25: raise ApiError(400, "Ungültiges Feld.")
+        with transaction() as db:
+            user_id = g.auth["user_id"]
+            register_action(user_id, payload.get("actionId"), "mines-reveal")
+            row = db.execute("SELECT * FROM active_mines_rounds WHERE user_id=?", (user_id,)).fetchone()
+            if not row: raise ApiError(409, "Starte zuerst eine Mines-Runde.")
+            revealed = json.loads(row["revealed_json"])
+            if tile in revealed: raise ApiError(409, "Dieses Feld ist bereits geöffnet.")
+            if tile in json.loads(row["mines_json"]):
+                return ok(finish_mines(db, row, False, tile), "Mine getroffen.")
+            revealed.append(tile)
+            db.execute("UPDATE active_mines_rounds SET revealed_json=? WHERE user_id=?", (json.dumps(revealed), user_id))
+            row = db.execute("SELECT * FROM active_mines_rounds WHERE user_id=?", (user_id,)).fetchone()
+            if len(revealed) == 25 - row["mine_count"]:
+                return ok(finish_mines(db, row, True, tile), "Alle Diamanten gefunden.")
+            balance = db.execute("SELECT amount FROM balances WHERE user_id=?", (user_id,)).fetchone()["amount"]
+            return ok(mines_data(row, balance), "Diamant gefunden.")
+
+    @app.post("/api/mines/cashout")
+    @auth_required
+    def mines_cashout():
+        payload = body()
+        with transaction() as db:
+            user_id = g.auth["user_id"]
+            register_action(user_id, payload.get("actionId"), "mines-cashout")
+            row = db.execute("SELECT * FROM active_mines_rounds WHERE user_id=?", (user_id,)).fetchone()
+            if not row or not json.loads(row["revealed_json"] if row else "[]"):
+                raise ApiError(409, "Öffne zuerst mindestens ein sicheres Feld.")
+            return ok(finish_mines(db, row, True), "Gewinn gesichert.")
 
     @app.get("/api/chicken/current")
     @auth_required

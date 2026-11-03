@@ -1,4 +1,5 @@
 import os
+import json
 from io import BytesIO
 import tempfile
 import unittest
@@ -15,6 +16,34 @@ from app import app, get_db, RATE_BUCKETS, outcome as determine_outcome, hand_va
 
 
 class WattCasinoApiTests(unittest.TestCase):
+    def test_mines_round_is_private_persistent_and_settled_once(self):
+        token = self.request("POST", "/api/auth/register", {"username": "MinesPlayer", "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
+        started = self.request("POST", "/api/mines/start", {"bet": 10, "mineCount": 3, "actionId": "mines-start-test-0001"}, token)
+        self.assertEqual(started.status_code, 201)
+        self.assertEqual(started.get_json()["data"]["balance"], 990)
+        self.assertNotIn("mines", started.get_json()["data"]["round"])
+        with app.app_context():
+            row = get_db().execute("SELECT mines_json FROM active_mines_rounds WHERE user_id=(SELECT id FROM users WHERE username='MinesPlayer')").fetchone()
+            mines = json.loads(row["mines_json"])
+        safe = next(tile for tile in range(25) if tile not in mines)
+        self.assertEqual(self.request("GET", "/api/mines/current", token=token).get_json()["data"]["round"]["revealed"], [])
+        revealed = self.request("POST", "/api/mines/reveal", {"tile": safe, "actionId": "mines-reveal-test-0001"}, token)
+        self.assertEqual(revealed.get_json()["data"]["round"]["revealed"], [safe])
+        self.assertEqual(self.request("POST", "/api/mines/reveal", {"tile": safe, "actionId": "mines-reveal-test-0002"}, token).status_code, 409)
+        cashed = self.request("POST", "/api/mines/cashout", {"actionId": "mines-cashout-test-001"}, token)
+        self.assertTrue(cashed.get_json()["data"]["result"]["won"])
+        self.assertEqual(cashed.get_json()["data"]["balance"], 1001)
+        self.assertEqual(self.request("POST", "/api/mines/cashout", {"actionId": "mines-cashout-test-001"}, token).status_code, 409)
+        started_again = self.request("POST", "/api/mines/start", {"bet": 5, "mineCount": 3, "actionId": "mines-start-test-0002"}, token)
+        self.assertEqual(started_again.status_code, 201)
+        with app.app_context():
+            row = get_db().execute("SELECT mines_json FROM active_mines_rounds WHERE user_id=(SELECT id FROM users WHERE username='MinesPlayer')").fetchone()
+            mine = json.loads(row["mines_json"])[0]
+        lost = self.request("POST", "/api/mines/reveal", {"tile": mine, "actionId": "mines-reveal-test-0003"}, token)
+        self.assertFalse(lost.get_json()["data"]["result"]["won"])
+        resumed = self.request("GET", "/api/mines/current", token=token).get_json()["data"]
+        self.assertIsNone(resumed["round"])
+        self.assertEqual(resumed["result"]["mines"], json.loads(row["mines_json"]))
     def test_poker_raise_limit_turn_and_fold_payout(self):
         tokens = [self.request("POST", "/api/auth/register", {"username": name, "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
                   for name in ("PokerRaiseHost", "PokerRaiseGuest")]
