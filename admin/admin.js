@@ -2,14 +2,23 @@
 
 // Muss immer identisch mit der API_URL in ../script.js sein.
 const API_URL = "https://ledoggo.pythonanywhere.com";
-const ADMIN_TOKEN_KEY = "wattCasinoAdminToken";
+const TOKEN_KEY = "wattCasinoSessionToken";
+const PERMISSION_LABELS = {
+  view_players: "Spieler ansehen",
+  change_balance: "Guthaben ändern",
+  rename_players: "Benutzernamen ändern",
+  suspend_players: "Spieler sperren/entsperren"
+};
 
 const ui = {
   login: document.querySelector("#admin-login"),
-  loginForm: document.querySelector("#admin-login-form"),
   loginMessage: document.querySelector("#admin-login-message"),
   app: document.querySelector("#admin-app"),
-  logout: document.querySelector("#admin-logout"),
+  moderatorPanel: document.querySelector("#moderator-panel"),
+  moderatorForm: document.querySelector("#moderator-form"),
+  moderatorPermissions: document.querySelector("#moderator-permissions"),
+  moderatorList: document.querySelector("#moderator-list"),
+  moderatorNotice: document.querySelector("#moderator-notice"),
   searchForm: document.querySelector("#admin-search-form"),
   search: document.querySelector("#admin-search"),
   notice: document.querySelector("#admin-notice"),
@@ -21,7 +30,8 @@ const ui = {
 };
 
 const state = {
-  token: sessionStorage.getItem(ADMIN_TOKEN_KEY),
+  token: localStorage.getItem(TOKEN_KEY),
+  access: null,
   page: 1,
   totalPages: 1,
   search: "",
@@ -39,23 +49,32 @@ async function request(path, options = {}) {
   }
   const payload = await response.json().catch(() => null);
   if (!response.ok || !payload?.success) {
-    if (response.status === 401 && state.token) showLogin();
+    if (response.status === 401 || response.status === 403 && path === "/api/admin/me") showLogin();
     throw new Error(payload?.message || "Die Anfrage konnte nicht verarbeitet werden.");
   }
   return payload.data;
 }
 
 function showLogin() {
-  state.token = null;
-  sessionStorage.removeItem(ADMIN_TOKEN_KEY);
   ui.app.hidden = true;
   ui.login.hidden = false;
 }
 
-function showApp() {
+async function showApp() {
+  try {
+    state.access = await request("/api/admin/me");
+  } catch (error) {
+    ui.loginMessage.textContent = error.message;
+    showLogin();
+    return;
+  }
   ui.login.hidden = true;
   ui.app.hidden = false;
   loadPlayers();
+  if (state.access.role === "owner") {
+    ui.moderatorPanel.hidden = false;
+    loadModerators();
+  }
 }
 
 function setNotice(message = "", error = false) {
@@ -87,15 +106,15 @@ function playerCard(player) {
       <p><strong>${formatChips(player.balance)} Chips</strong><br>${player.roundsPlayed} Runden · ${player.wins} Siege · ${player.losses} Niederlagen<br>Zuletzt aktiv: ${formatDate(player.lastActivityAt)}</p>
       ${player.suspended ? `<span class="admin-badge">Gesperrt</span>` : player.hasActiveRound ? `<span class="admin-badge is-active">Runde läuft</span>` : ""}
     </div>
-    <div class="admin-field">
+    ${state.access.permissions.includes("rename_players") ? `<div class="admin-field">
       <label>Benutzername</label>
       <div class="admin-field-row"><input class="username-input" maxlength="20" value="${escapeHtml(player.username)}"><button class="admin-action username-save" type="button">Ändern</button></div>
-    </div>
-    <div class="admin-field">
+    </div>` : ""}
+    ${state.access.permissions.includes("change_balance") ? `<div class="admin-field">
       <label>Guthaben</label>
       <div class="admin-field-row"><input class="balance-input" type="number" min="0" max="1000000000" step="0.5" value="${player.balance}"><button class="admin-action balance-save" type="button" ${player.hasActiveRound ? "disabled" : ""}>Setzen</button></div>
-    </div>
-    <div class="admin-field">
+    </div>` : ""}
+    ${state.access.permissions.includes("suspend_players") ? `<div class="admin-field">
       <label>${player.suspended ? "Sperrgrund" : "Begründung für Sperre"}</label>
       <textarea class="suspension-reason" maxlength="300" placeholder="Grund für die Sperre">${escapeHtml(player.suspensionReason || "")}</textarea>
       <div class="admin-suspension-actions">
@@ -103,11 +122,11 @@ function playerCard(player) {
           ? `<button class="admin-action admin-action--release suspension-toggle" data-suspended="false" type="button">Sperre aufheben</button>`
           : `<button class="admin-action admin-action--danger suspension-toggle" data-suspended="true" type="button">Spieler sperren</button>`}
       </div>
-    </div>`;
+    </div>` : ""}`;
 
-  article.querySelector(".username-save").addEventListener("click", () => updateUsername(player.id, article));
-  article.querySelector(".balance-save").addEventListener("click", () => updateBalance(player.id, article));
-  article.querySelector(".suspension-toggle").addEventListener("click", (event) => updateSuspension(player.id, article, event.currentTarget.dataset.suspended === "true"));
+  article.querySelector(".username-save")?.addEventListener("click", () => updateUsername(player.id, article));
+  article.querySelector(".balance-save")?.addEventListener("click", () => updateBalance(player.id, article));
+  article.querySelector(".suspension-toggle")?.addEventListener("click", (event) => updateSuspension(player.id, article, event.currentTarget.dataset.suspended === "true"));
   return article;
 }
 
@@ -158,34 +177,49 @@ function updateSuspension(id, article, suspended) {
   mutate(`/api/admin/players/${id}/suspension`, { suspended, reason }, suspended ? "Spieler gesperrt." : "Sperre aufgehoben.");
 }
 
-ui.loginForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const button = ui.loginForm.querySelector("button");
-  if (button.disabled) return;
-  button.disabled = true;
-  ui.loginMessage.textContent = "";
+async function loadModerators() {
   try {
-    const data = await request("/api/admin/login", {
-      method: "POST",
-      body: JSON.stringify({ password: ui.loginForm.elements.password.value })
-    });
-    state.token = data.token;
-    sessionStorage.setItem(ADMIN_TOKEN_KEY, data.token);
-    ui.loginForm.reset();
-    showApp();
-  } catch (error) {
-    ui.loginMessage.textContent = error.message;
-  } finally {
-    button.disabled = false;
-  }
-});
+    const data = await request("/api/admin/moderators");
+    ui.moderatorPermissions.replaceChildren(...data.availablePermissions.map((key) => {
+      const label = document.createElement("label");
+      label.innerHTML = `<input type="checkbox" name="permissions" value="${key}" ${key === "view_players" ? "checked" : ""}> ${PERMISSION_LABELS[key]}`;
+      return label;
+    }));
+    ui.moderatorList.replaceChildren(...data.moderators.map((moderator) => {
+      const row = document.createElement("div");
+      row.className = "moderator-row";
+      row.innerHTML = `<strong>${escapeHtml(moderator.username)}</strong><span>${moderator.permissions.map((key) => PERMISSION_LABELS[key]).join(" · ")}</span><button class="admin-action moderator-edit" type="button">Bearbeiten</button><button class="admin-action admin-action--danger moderator-remove" type="button">Entfernen</button>`;
+      row.querySelector(".moderator-edit").addEventListener("click", () => {
+        ui.moderatorForm.elements.username.value = moderator.username;
+        ui.moderatorPermissions.querySelectorAll("input").forEach((input) => { input.checked = moderator.permissions.includes(input.value); });
+        ui.moderatorForm.scrollIntoView({ behavior: "smooth" });
+      });
+      row.querySelector(".moderator-remove").addEventListener("click", async () => {
+        try {
+          await request(`/api/admin/moderators/${encodeURIComponent(moderator.username)}`, { method: "DELETE" });
+          ui.moderatorNotice.textContent = "Moderator entfernt.";
+          await loadModerators();
+        } catch (error) { ui.moderatorNotice.textContent = error.message; }
+      });
+      return row;
+    }));
+  } catch (error) { ui.moderatorNotice.textContent = error.message; }
+}
 
-ui.logout.addEventListener("click", async () => {
-  try { await request("/api/admin/logout", { method: "POST" }); } catch { /* Sitzung lokal trotzdem entfernen. */ }
-  showLogin();
+ui.moderatorForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const username = ui.moderatorForm.elements.username.value.trim();
+  const permissions = [...ui.moderatorPermissions.querySelectorAll("input:checked")].map((input) => input.value);
+  try {
+    await request(`/api/admin/moderators/${encodeURIComponent(username)}`, { method: "PUT", body: JSON.stringify({ permissions }) });
+    ui.moderatorNotice.textContent = "Moderatorrechte gespeichert.";
+    ui.moderatorForm.reset();
+    await loadModerators();
+  } catch (error) { ui.moderatorNotice.textContent = error.message; }
 });
 ui.searchForm.addEventListener("submit", (event) => { event.preventDefault(); state.search = ui.search.value.trim(); state.page = 1; loadPlayers(); });
 ui.prev.addEventListener("click", () => { if (state.page > 1) { state.page -= 1; loadPlayers(); } });
 ui.next.addEventListener("click", () => { if (state.page < state.totalPages) { state.page += 1; loadPlayers(); } });
 
 if (state.token) showApp();
+else ui.loginMessage.textContent = "Bitte zuerst im Casino anmelden.";

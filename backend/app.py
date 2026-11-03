@@ -1174,7 +1174,7 @@ def make_app():
     def leaderboard():
         page=positive_int(request.args.get("page"),1); limit=positive_int(request.args.get("limit"),25,100)
         db=get_db(); total=db.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"]; pages=max(1,(total+limit-1)//limit); page=min(page,pages)
-        rows=db.execute("""SELECT u.username,u.avatar_filename,b.amount AS balance,s.rounds_played,s.wins,s.losses,RANK() OVER (ORDER BY b.amount DESC) AS rank FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id ORDER BY b.amount DESC,u.username_normalized ASC LIMIT ? OFFSET ?""",(limit,(page-1)*limit)).fetchall()
+        rows=db.execute("""SELECT u.username,u.avatar_filename,b.amount AS balance,s.rounds_played,s.wins,s.losses,ROW_NUMBER() OVER (ORDER BY b.amount DESC,u.username_normalized ASC) AS rank FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id ORDER BY b.amount DESC,u.username_normalized ASC LIMIT ? OFFSET ?""",(limit,(page-1)*limit)).fetchall()
         players=[] 
         for row in rows:
             win,_=rates(row); players.append({"rank":row["rank"],"username":row["username"],"avatarUrl":avatar_url(row["avatar_filename"]),"balance":row["balance"],"roundsPlayed":row["rounds_played"],"winRate":win,"isCurrentUser":normalise(row["username"])==normalise(g.auth["username"])})
@@ -1184,7 +1184,7 @@ def make_app():
     @auth_required
     def profile(username):
         if not USERNAME_RE.fullmatch(username): raise ApiError(400,"Ungültiger Benutzername.")
-        row=get_db().execute("""SELECT u.id,u.username,u.created_at,u.last_activity_at,u.avatar_filename,b.amount AS balance,s.*, (SELECT 1+COUNT(*) FROM balances other WHERE other.amount>b.amount) AS rank FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id WHERE u.username_normalized=?""",(normalise(username),)).fetchone()
+        row=get_db().execute("""SELECT u.id,u.username,u.created_at,u.last_activity_at,u.avatar_filename,b.amount AS balance,s.*, (SELECT 1+COUNT(*) FROM balances other JOIN users other_user ON other_user.id=other.user_id WHERE other.amount>b.amount OR (other.amount=b.amount AND other_user.username_normalized<u.username_normalized)) AS rank FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id WHERE u.username_normalized=?""",(normalise(username),)).fetchone()
         if not row: raise ApiError(404,"Spieler nicht gefunden.")
         win,loss=rates(row); streak={"type":"win","count":row["current_streak"]} if row["current_streak"]>0 else ({"type":"loss","count":abs(row["current_streak"])} if row["current_streak"]<0 else {"type":"none","count":0})
         keys={"username":"username","balance":"balance","rank":"rank","roundsPlayed":"rounds_played","wins":"wins","losses":"losses","pushes":"pushes","blackjacks":"blackjacks","highestBalance":"highest_balance","biggestWin":"biggest_win","totalWon":"total_won","totalLost":"total_lost","bestWinStreak":"best_win_streak","totalPlaySeconds":"total_play_seconds","registeredAt":"created_at","lastActivityAt":"last_activity_at"}

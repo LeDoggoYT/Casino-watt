@@ -263,8 +263,26 @@ button:disabled { opacity: .35; cursor: not-allowed; }
 .admin-action { min-width: 72px; }
 .admin-action--danger { border-color: #8c4d4d; color: #f0b7b6; background: #432b2b; }
 .admin-action--release { border-color: #52745b; color: #d5e9d4; background: #2a3b2e; }
+.admin-back-link { display: inline-flex; align-items: center; justify-content: center; padding: 0 18px; text-decoration: none; }
+.admin-logout { display: inline-flex; align-items: center; text-decoration: none; }
+.moderator-panel { margin-top: 24px; }
+.moderator-panel h2 { margin: 4px 0 0; font-family: var(--font-ui); font-size: 27px; }
+.moderator-form { display: grid; gap: 12px; padding: 24px 31px; max-width: 600px; font-family: var(--font-ui); }
+.moderator-form > label { color: var(--muted); font-size: 13px; }
+.moderator-form > input { min-height: 44px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--cream); background: var(--admin-field); font: inherit; }
+.moderator-permissions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.moderator-permissions label { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.moderator-form .admin-primary { padding: 0 18px; justify-self: start; }
+.moderator-list { display: grid; }
+.moderator-row { display: flex; gap: 14px; align-items: center; padding: 15px 31px; border-top: 1px solid var(--line-soft); font-family: var(--font-ui); font-size: 13px; }
+.moderator-row span { flex: 1; color: var(--muted); }
+.moderator-row button { min-height: 34px; }
 @media (max-width: 640px) {
   .admin-main { width: calc(100% - 24px); margin: 14px auto; }
   .admin-panel { border: 1px solid var(--line); border-radius: 14px; }
   .admin-header { padding: 10px 16px; }
+  .moderator-form { padding: 20px 18px; }
+  .moderator-permissions { grid-template-columns: 1fr; }
+  .moderator-row { flex-wrap: wrap; padding: 16px 18px; }
+  .moderator-row span { flex-basis: 100%; }
 }

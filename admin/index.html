@@ -17,13 +17,9 @@
       </div>
       <span class="admin-kicker">Interne Verwaltung</span>
       <h1 id="admin-login-title">Admin-Zugang</h1>
-      <p>Dieser Bereich ist ausschließlich für die Spielerverwaltung vorgesehen.</p>
-      <form id="admin-login-form">
-        <label for="admin-password">Passwort</label>
-        <input id="admin-password" name="password" type="password" maxlength="128" autocomplete="current-password" required autofocus>
-        <p class="admin-form-message" id="admin-login-message" role="status" aria-live="polite"></p>
-        <button class="admin-primary" type="submit">Anmelden</button>
-      </form>
+      <p>Bitte melde dich im Casino mit einem berechtigten Spielerkonto an.</p>
+      <p class="admin-form-message" id="admin-login-message" role="status" aria-live="polite"></p>
+      <a class="admin-primary admin-back-link" href="../">Zum Casino</a>
     </section>
   </main>
 
@@ -34,7 +30,7 @@
         <span class="brand-name">Watt <strong>Casino</strong></span>
       </div>
       <span class="admin-title">Spielerverwaltung</span>
-      <button class="admin-logout" id="admin-logout" type="button">Abmelden</button>
+      <a class="admin-logout" href="../">Zum Casino</a>
     </header>
 
     <main class="admin-main">
@@ -61,6 +57,17 @@
           <span id="admin-page-label">Seite 1 von 1</span>
           <button id="admin-next" type="button">Weiter</button>
         </footer>
+      </section>
+      <section class="admin-panel moderator-panel" id="moderator-panel" hidden aria-labelledby="moderators-title">
+        <header class="admin-panel-header"><div><span class="admin-kicker">Zugriffsrechte</span><h2 id="moderators-title">Moderatoren</h2><p>Rechte gelten sofort für das jeweilige Spielerkonto.</p></div></header>
+        <form id="moderator-form" class="moderator-form">
+          <label for="moderator-username">Spielername</label>
+          <input id="moderator-username" name="username" maxlength="20" required placeholder="Benutzername">
+          <div class="moderator-permissions" id="moderator-permissions"></div>
+          <button class="admin-primary" type="submit">Moderator speichern</button>
+        </form>
+        <div class="admin-notice" id="moderator-notice" role="status" aria-live="polite"></div>
+        <div id="moderator-list" class="moderator-list"></div>
       </section>
     </main>
   </div>

@@ -369,6 +369,21 @@ class WattCasinoApiTests(unittest.TestCase):
         self.assertEqual(self.request("DELETE", "/api/admin/moderators/ModRights", token=owner).status_code, 200)
         self.assertEqual(self.request("GET", "/api/admin/players", token=moderator).status_code, 403)
 
+    def test_leaderboard_ties_have_unique_ranks_matching_profiles(self):
+        credentials = {"password": "SicheresTestpasswort9"}
+        first = self.request("POST", "/api/auth/register", {**credentials, "username": "TieAlpha"}).get_json()["data"]["token"]
+        self.request("POST", "/api/auth/register", {**credentials, "username": "TieBeta"})
+        players = self.request("GET", "/api/leaderboard?limit=100", token=first).get_json()["data"]["players"]
+        ranks = [player["rank"] for player in players]
+        self.assertEqual(ranks, list(range(1, len(players) + 1)))
+        alpha = next(player for player in players if player["username"] == "TieAlpha")
+        beta = next(player for player in players if player["username"] == "TieBeta")
+        self.assertEqual(alpha["balance"], beta["balance"])
+        self.assertLess(alpha["rank"], beta["rank"])
+        for player in (alpha, beta):
+            profile = self.request("GET", f"/api/players/{player['username']}", token=first).get_json()["data"]["player"]
+            self.assertEqual(profile["rank"], player["rank"])
+
     def test_avatar_upload_is_saved_and_publicly_served(self):
         player = {"username": "AvatarPlayer", "password": "SicheresTestpasswort9"}
         token = self.request("POST", "/api/auth/register", player).get_json()["data"]["token"]

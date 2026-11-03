@@ -226,6 +226,7 @@ function clearSession() {
   stopHeartbeat();
   if (typeof stopPoker === "function") stopPoker();
   ui.app.hidden = true;
+  document.querySelector("#admin-link").hidden = true;
   ui.suspendedScreen.hidden = true;
   ui.authScreen.hidden = false;
   ui.headerAvatar.replaceChildren();
@@ -253,6 +254,7 @@ async function establishSession(token) {
   state.selectedBet = current.round?.bet ?? 0;
   state.settled = false;
   ui.headerUser.textContent = state.user.username;
+  document.querySelector("#admin-link").hidden = !me.adminAccess?.permissions?.includes("view_players");
   renderAvatar(ui.headerAvatar, state.user);
   ui.authScreen.hidden = true;
   ui.suspendedScreen.hidden = true;

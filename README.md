@@ -67,9 +67,8 @@ Danach `http://127.0.0.1:8080` öffnen. Die lokale API-Adresse in `script.js` un
     NODE_ENV=production
     DATABASE_PATH=/home/DEIN_PYTHONANYWHERE_NAME/Casino-Watt/backend/data/watt-casino.sqlite
     FRONTEND_ORIGINS=https://wigipedia.netlify.app
-    ADMIN_PASSWORD=2011
 
-Vor einer öffentlichen Veröffentlichung muss ein längeres eigenes Admin-Passwort gesetzt werden.
+Das Admin-Panel unter `/admin/` verwendet die normale Spielersitzung. Das bestehende Spielerkonto `Tiago` hat vollen Zugriff; Moderatoren und ihre Rechte werden dort verwaltet. Tiagos Spielerpasswort sollte sicher und nur ihm bekannt sein.
 
 4. Unter Web: Add a new web app → Manual configuration → Python 3.13.
 5. Öffne die erzeugte WSGI-Datei. Ersetze ihren Inhalt durch `backend/pythonanywhere_wsgi.py.example`; darin `DEIN_PYTHONANYWHERE_NAME` durch deinen Account-Namen ersetzen.
@@ -91,7 +90,6 @@ Die SQLite-Datei liegt im Home-Verzeichnis des PythonAnywhere-Accounts und bleib
 - `DATABASE_PATH`: SQLite-Pfad, auf PythonAnywhere absolut
 - `SESSION_DAYS`: Laufzeit der Spielersitzung, Standard 30
 - `BCRYPT_ROUNDS`: bcrypt-Kostenfaktor, Standard 12
-- `ADMIN_PASSWORD`: Passwort für `/admin/`
 
 ## Test
 
