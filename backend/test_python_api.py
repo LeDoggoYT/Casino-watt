@@ -444,17 +444,15 @@ class WattCasinoApiTests(unittest.TestCase):
         weights = config["slotWeights"]
         self.assertEqual(len(weights), len(config["multipliers"]))
         self.assertEqual(sum(weights), config["totalWeight"])
-        self.assertEqual(weights[5] / config["totalWeight"], 0.125)
+        self.assertEqual(weights, [100, 200, 400, 700, 1200, 1400, 2000, 1400, 1200, 700, 400, 200, 100])
+        self.assertEqual(weights[5] / config["totalWeight"], 0.14)
         self.assertEqual(config["multipliers"][6], 0.3)
-        self.assertEqual(weights[6] / config["totalWeight"], 0.10)
-        self.assertEqual(weights[7] / config["totalWeight"], 0.125)
-        self.assertEqual(sum(weight for weight, multiplier in zip(weights, config["multipliers"]) if multiplier > 1) / config["totalWeight"], 0.65)
-        self.assertEqual(weights[3] / config["totalWeight"], 0.03)
-        self.assertEqual(weights[2] / config["totalWeight"], 0.003)
-        self.assertEqual(weights[1] / config["totalWeight"], 0.0003)
+        self.assertEqual(weights[6] / config["totalWeight"], 0.20)
+        self.assertEqual(weights[7] / config["totalWeight"], 0.14)
+        self.assertEqual(sum(weight for weight, multiplier in zip(weights, config["multipliers"]) if multiplier > 1) / config["totalWeight"], 0.52)
         expected_return = sum(weight * multiplier for weight, multiplier in zip(weights, config["multipliers"])) / config["totalWeight"]
-        self.assertAlmostEqual(expected_return, 1.4772)
-        for index, (roll, expected_slot) in enumerate(((0, 0), (334, 4), (3250, 5), (4500, 6), (9999, 12))):
+        self.assertAlmostEqual(expected_return, 9.068)
+        for index, (roll, expected_slot) in enumerate(((0, 0), (1400, 4), (2600, 5), (4000, 6), (9999, 12))):
             with patch("app.secrets.randbelow", return_value=roll):
                 response = self.request("POST", "/api/pinball/play", {"bet": 5, "actionId": f"pinball-odds-roll-{index:04d}"}, token)
             self.assertEqual(response.status_code, 200)
