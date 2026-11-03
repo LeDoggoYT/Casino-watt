@@ -1173,7 +1173,7 @@ def make_app():
     def mines_start():
         payload = body()
         bet, mine_count = payload.get("bet"), payload.get("mineCount")
-        if type(bet) not in (float, int) or not 5 <= bet <= 1_000_000_000 or bet * 2 != round(bet * 2):
+        if type(bet) not in (float, int) or not 5 <= bet < 2**52 or bet * 2 != round(bet * 2):
             raise ApiError(400, "Mindestens 5 Chips in 0,5er-Schritten einsetzen.")
         if type(mine_count) is not int or not 1 <= mine_count <= 20:
             raise ApiError(400, "Wähle 1 bis 20 Minen.")
