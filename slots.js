@@ -1,13 +1,18 @@
 "use strict";
 ui.views.slots = document.querySelector("#slots-view");
 const slotFace = ["🍒", "🍋", "🔔", "💎", "7️⃣"];
-const slotNames = ["Kirsche", "Zitrone", "Glocke", "Diamant", "Sieben"];
 const reels = [...document.querySelectorAll(".slot-reel")];
 const slotChips = document.querySelector("#slots-chips");
 const slotStatus = document.querySelector("#slots-status");
+function showSlotsError(message) {
+  slotStatus.textContent = message;
+  slotStatus.classList.remove("visually-hidden");
+  slotStatus.hidden = false;
+}
 let slotsBet = 0;
 
 function updateSlotsControls() {
+  syncChipValues();
   if (slotsBet > state.balance) slotsBet = 0;
   const available = state.balance - slotsBet;
   document.querySelector("#slots-balance").textContent = formatChips(state.balance);
@@ -59,7 +64,9 @@ document.querySelector("#slots-form").addEventListener("submit", async event => 
   const token = state.token;
   state.busy = true;
   updateSlotsControls();
-  slotStatus.textContent = "Die Walzen drehen …";
+  slotStatus.textContent = "";
+  slotStatus.classList.remove("visually-hidden");
+  slotStatus.hidden = true;
   try {
     const result = await api("/api/slots/play", {method:"POST", body:JSON.stringify({bet:slotsBet, actionId:actionId()}), signal:AbortSignal.timeout(10000)});
     if (state.token !== token) return;
@@ -67,11 +74,12 @@ document.querySelector("#slots-form").addEventListener("submit", async event => 
     slotsBet = 0;
     await Promise.all(reels.map((reel,i) => stopSlotReel(reel,result.symbols[i],i)));
     if (state.token !== token) return;
-    const outcome = result.multiplier === 1 ? "Einsatz zurück." : result.multiplier ? `${result.multiplier}× · ${formatChips(result.payout)} Chips ausgezahlt.` : "Kein Gewinn.";
-    slotStatus.textContent = result.symbols.map(i => slotNames[i]).join(" · ") + " — " + outcome;
+    slotStatus.textContent = result.multiplier === 1 ? "Einsatz zurück." : result.multiplier ? `${result.multiplier}× · ${formatChips(result.payout)} Chips ausgezahlt.` : "Kein Gewinn.";
+    slotStatus.classList.add("visually-hidden");
+    slotStatus.hidden = false;
   } catch (error) {
     if (state.token !== token) return;
-    slotStatus.textContent = error.message;
+    showSlotsError(error.message);
     try {
       const current = await api("/api/auth/me", {signal:AbortSignal.timeout(8000)});
       if (state.token === token) state.balance = current.game.balance;

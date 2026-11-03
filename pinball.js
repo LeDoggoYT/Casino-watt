@@ -5,6 +5,7 @@ const pinballSlots = document.querySelector("#pinball-slots");
 const pinballBet = document.querySelector("#pinball-bet");
 let pinballSelectedBet = 0;
 function updatePinballControls() {
+  syncChipValues();
   if (pinballSelectedBet > state.balance) pinballSelectedBet = 0;
   pinballBet.textContent = formatChips(pinballSelectedBet);
   document.querySelector("#pinball-balance").textContent = formatChips(state.balance);
@@ -35,8 +36,25 @@ ui.chips.forEach(chip => {
 document.querySelector("#pinball-clear-bet").addEventListener("click", () => { pinballSelectedBet = 0; updatePinballControls(); });
 const pinballForm = document.querySelector("#pinball-form");
 const pinballMessage = document.querySelector("#pinball-message");
-const pinballCurrentMultipliers = [200, 74, 12, 3.6, 1.5, .8, 0, .8, 1.5, 3.6, 12, 74, 200];
+function showPinballError(message) {
+  pinballMessage.textContent = message;
+  pinballMessage.classList.remove("visually-hidden");
+  pinballMessage.hidden = false;
+}
+function clearPinballMessage() {
+  pinballMessage.textContent = "";
+  pinballMessage.classList.remove("visually-hidden");
+  pinballMessage.hidden = true;
+}
+function announcePinballResult(data) {
+  pinballMessage.textContent = `${pinballMultiplierLabel(data.multiplier)} · ${formatChips(data.payout)} Chips ausgezahlt.`;
+  pinballMessage.classList.add("visually-hidden");
+  pinballMessage.hidden = false;
+}
+const pinballCurrentMultipliers = [53, 38, 12, 3.6, 1.5, .8, .3, .8, 1.5, 3.6, 12, 38, 53];
 let pinballMultipliers = pinballCurrentMultipliers;
+let pinballWeights = null;
+let pinballConfigLoaded = false;
 function pinballMultiplierLabel(value) {
   return `${value === 0 ? "0,0" : String(value).replace(".", ",")}×`;
 }
@@ -47,8 +65,9 @@ function pinballCircle(x, y, radius, className) {
   return circle;
 }
 const pinballBall = pinballCircle(300, 20, 8, "pinball-ball");
-function renderPinballBoard(multipliers) {
+function renderPinballBoard(multipliers, weights) {
   pinballMultipliers = multipliers;
+  pinballWeights = weights;
   pinballSvg.querySelectorAll(".pinball-peg").forEach(peg => peg.remove());
   for (let row = 0; row < multipliers.length - 1; row++) {
     for (let col = 0; col < row + 3; col++) pinballCircle(300 + (col - (row + 2) / 2) * 40, 55 + row * 40, 4.5, "pinball-peg");
@@ -60,12 +79,33 @@ function renderPinballBoard(multipliers) {
   pinballSlots.replaceChildren();
   multipliers.forEach((value, index) => {
     const slot = document.createElement("span");
-    slot.textContent = pinballMultiplierLabel(value);
+    const factor = document.createElement("strong");
+    factor.textContent = pinballMultiplierLabel(value);
+    slot.append(factor);
+    slot.setAttribute("aria-label", factor.textContent);
     slot.style.setProperty("--slot-color", `hsl(${Math.min(index, multipliers.length - 1 - index) * 9} 78% 55%)`);
     pinballSlots.append(slot);
   });
 }
-renderPinballBoard(pinballMultipliers);
+function validPinballConfig(multipliers, weights) {
+  return Array.isArray(multipliers) && multipliers.length === pinballCurrentMultipliers.length &&
+    multipliers.every(value => Number.isFinite(value) && value >= 0) &&
+    Array.isArray(weights) && weights.length === multipliers.length &&
+    weights.every(value => Number.isInteger(value) && value >= 0) &&
+    weights.reduce((sum, weight) => sum + weight, 0) > 0;
+}
+renderPinballBoard(pinballMultipliers, pinballWeights);
+async function loadPinballConfig() {
+  if (pinballConfigLoaded) return;
+  try {
+    const config = await api("/api/pinball/config");
+    if (!validPinballConfig(config.multipliers, config.slotWeights)) throw new Error("Ungültige Pinball-Chancen vom Server.");
+    renderPinballBoard(config.multipliers, config.slotWeights);
+    pinballConfigLoaded = true;
+  } catch {
+    showPinballError("Pinball-Chancen konnten nicht geladen werden. Bitte Backend aktualisieren und Seite neu laden.");
+  }
+}
 function launchPinball() {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
     pinballBall.setAttribute("cy", 47);
@@ -121,14 +161,14 @@ pinballForm.addEventListener("submit", async event => {
   event.preventDefault();
   if (state.busy) return;
   const bet = pinballSelectedBet;
-  if (!Number.isFinite(bet) || bet < 5 || bet > state.balance || bet * 2 !== Math.round(bet * 2)) { pinballMessage.textContent = "Bitte einen gültigen Einsatz innerhalb deines Guthabens wählen."; return; }
+  if (!Number.isFinite(bet) || bet < 5 || bet > state.balance || bet * 2 !== Math.round(bet * 2)) { showPinballError("Bitte einen gültigen Einsatz innerhalb deines Guthabens wählen."); return; }
   pinballBall.setAttribute("cx", 300);
   pinballBall.setAttribute("cy", 20);
   state.busy = true;
   const token = state.token;
   [...pinballForm.elements].forEach(element => { element.disabled = true; });
   [...pinballSlots.children].forEach(slot => slot.classList.remove("is-hit"));
-  pinballMessage.textContent = "Die Kugel fällt …";
+  clearPinballMessage();
   let launch = Promise.resolve();
   try {
     launch = launchPinball();
@@ -136,10 +176,10 @@ pinballForm.addEventListener("submit", async event => {
     if (state.token !== token) return;
     state.balance = data.balance;
     pinballSelectedBet = 0;
-    if (Array.isArray(data.multipliers) && [11, 13].includes(data.multipliers.length) &&
-        data.multipliers.every(value => Number.isFinite(value) && value >= 0) &&
-        data.multipliers.some((value, index) => value !== pinballMultipliers[index])) {
-      renderPinballBoard(data.multipliers);
+    if (validPinballConfig(data.multipliers, data.slotWeights) &&
+        (data.multipliers.some((value, index) => value !== pinballMultipliers[index]) ||
+         data.slotWeights.some((value, index) => value !== pinballWeights?.[index]))) {
+      renderPinballBoard(data.multipliers, data.slotWeights);
     }
     if (!Array.isArray(data.path) || data.path.some(step => step !== 0 && step !== 1) ||
         !Number.isInteger(data.slot) || data.slot < 0 || data.slot >= pinballMultipliers.length ||
@@ -150,7 +190,7 @@ pinballForm.addEventListener("submit", async event => {
       await launch;
       pinballBall.setAttribute("cx", 300);
       pinballBall.setAttribute("cy", 20);
-      pinballMessage.textContent = `${formatChips(data.payout)} Chips ausgezahlt. Spielversionen stimmen nicht überein: Backend aktualisieren und Seite neu laden.`;
+      showPinballError(`${formatChips(data.payout)} Chips ausgezahlt. Spielversionen stimmen nicht überein: Backend aktualisieren und Seite neu laden.`);
       return;
     }
     await launch;
@@ -159,12 +199,13 @@ pinballForm.addEventListener("submit", async event => {
     pinballSlots.children[data.slot].classList.add("is-hit");
     document.querySelector("#pinball-balance").textContent = formatChips(data.balance);
     ui.balance.textContent = formatChips(data.balance);
-    pinballMessage.textContent = `${pinballMultiplierLabel(data.multiplier)} · ${formatChips(data.payout)} Chips ausgezahlt (${data.netResult >= 0 ? "+" : ""}${formatChips(data.netResult)} Chips).${pinballMultipliers.some((value, index) => value !== pinballCurrentMultipliers[index]) ? " Der Server verwendet noch andere Gewinnfelder. Bitte PythonAnywhere aktualisieren." : ""}`;
+    if (!validPinballConfig(data.multipliers, data.slotWeights)) showPinballError("Server und Seite haben unterschiedliche Pinball-Versionen. Bitte PythonAnywhere aktualisieren.");
+    else announcePinballResult(data);
   } catch (error) {
     await launch;
     pinballBall.setAttribute("cx", 300);
     pinballBall.setAttribute("cy", 20);
-    pinballMessage.textContent = error.message;
+    showPinballError(error.message);
     // A timed-out request may already have been settled: never replay it.
     try {
       const current = await api("/api/auth/me", {signal: AbortSignal.timeout(8000)});

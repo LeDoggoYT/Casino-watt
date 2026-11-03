@@ -14,6 +14,7 @@ const crashFormat = value => `${value.toLocaleString("de-DE", {minimumFractionDi
 
 function crashConnected() { return crashData && performance.now() - crashReceivedAt < 3500 && !crashError; }
 function updateCrashControls() {
+  syncChipValues();
   if (crashSelectedBet > state.balance) crashSelectedBet = 0;
   const mine = crashData?.mine;
   const phase = crashData?.round.phase;
@@ -73,13 +74,12 @@ function applyCrashData(data) {
     const badge = document.createElement("span"); badge.className = round.crash_at >= 2 ? "is-high" : "";
     badge.textContent = crashFormat(round.crash_at); badge.title = `Runde ${round.id}`; crashUI.history.append(badge);
   }
-  if (!data.history.length) crashUI.history.textContent = "Die erste Runde startet gleich.";
   renderCrashPlayers(crashUI.players, data.players);
   renderCrashPlayers(crashUI.previous, data.previous);
   crashUI["player-count"].textContent = data.players.length;
   crashUI["round-label"].textContent = `Runde #${data.round.id}`;
-  const mine = data.mine;
-  crashUI.message.textContent = mine?.payout != null ? (mine.cashout_at ? `Bei ${crashFormat(mine.cashout_at)} ausgestiegen: ${formatChips(mine.payout)} Chips ausgezahlt.` : `${formatChips(mine.bet)} Chips verloren.`) : mine ? "Dein Einsatz ist gesetzt. Steige rechtzeitig aus." : "Einsatz vor dem Start setzen und vor dem Crash aussteigen.";
+  crashUI.message.textContent = "";
+  crashUI.message.hidden = true;
   updateCrashControls();
 }
 async function pollCrash() {
@@ -91,7 +91,7 @@ async function pollCrash() {
   try {
     const data = await api("/api/crash/current", {signal: AbortSignal.timeout(8000)});
     if (state.token === token && state.activeView === "crash") applyCrashData(data);
-  } catch (error) { crashError = error.message; crashUI.message.textContent = error.message; updateCrashControls(); }
+  } catch (error) { crashError = error.message; crashUI.message.textContent = error.message; crashUI.message.hidden = false; updateCrashControls(); }
   finally { crashRequestBusy = false; crashTimer = setTimeout(pollCrash, 1000); }
 }
 function drawCrash() {
@@ -148,6 +148,6 @@ crashUI.form.addEventListener("submit", async event => {
     if (state.token !== token) return;
     if (action === "bet") crashSelectedBet = 0;
     applyCrashData(data);
-  } catch (error) { crashUI.message.textContent = error.message; }
+  } catch (error) { crashUI.message.textContent = error.message; crashUI.message.hidden = false; }
   finally { crashActionBusy = false; state.busy = false; updateCrashControls(); updateControls(); pollCrash(); }
 });

@@ -15,9 +15,7 @@
         <span class="brand-mark" aria-hidden="true"><span>W</span></span>
         <span class="brand-name">Watt <strong>Casino</strong></span>
       </div>
-      <span class="admin-kicker">Interne Verwaltung</span>
       <h1 id="admin-login-title">Admin-Zugang</h1>
-      <p>Bitte melde dich im Casino mit einem berechtigten Spielerkonto an.</p>
       <p class="admin-form-message" id="admin-login-message" role="status" aria-live="polite"></p>
       <a class="admin-primary admin-back-link" href="../">Zum Casino</a>
     </section>
@@ -37,18 +35,17 @@
       <section class="admin-panel" aria-labelledby="players-title">
         <header class="admin-panel-header">
           <div>
-            <span class="admin-kicker">Konten und Spielgeld</span>
             <h1 id="players-title">Spieler</h1>
-            <p>Änderungen werden serverseitig geprüft und protokolliert.</p>
           </div>
           <form class="admin-search" id="admin-search-form" role="search">
             <label class="visually-hidden" for="admin-search">Spieler suchen</label>
-            <input id="admin-search" name="search" type="search" maxlength="20" placeholder="Benutzername suchen">
+            <input id="admin-search" name="search" type="search" maxlength="20" placeholder="Spieler suchen …" autocomplete="off">
             <button type="submit">Suchen</button>
           </form>
         </header>
 
         <div class="admin-notice" id="admin-notice" role="status" aria-live="polite"></div>
+        <p class="admin-results" id="admin-results"></p>
         <div class="admin-player-list" id="admin-player-list"></div>
         <p class="admin-empty" id="admin-empty" hidden>Keine Spieler gefunden.</p>
 
@@ -59,12 +56,15 @@
         </footer>
       </section>
       <section class="admin-panel moderator-panel" id="moderator-panel" hidden aria-labelledby="moderators-title">
-        <header class="admin-panel-header"><div><span class="admin-kicker">Zugriffsrechte</span><h2 id="moderators-title">Moderatoren</h2><p>Rechte gelten sofort für das jeweilige Spielerkonto.</p></div></header>
+        <header class="admin-panel-header"><div><h2 id="moderators-title">Moderatoren</h2></div></header>
         <form id="moderator-form" class="moderator-form">
-          <label for="moderator-username">Spielername</label>
-          <input id="moderator-username" name="username" maxlength="20" required placeholder="Benutzername">
+          <label for="moderator-search">Spieler auswählen</label>
+          <input id="moderator-search" type="search" maxlength="20" placeholder="Mindestens 2 Buchstaben eingeben" autocomplete="off" aria-controls="moderator-search-results">
+          <div id="moderator-search-results" class="moderator-search-results" role="listbox" hidden></div>
+          <div id="moderator-selected" class="moderator-selected" hidden></div>
+          <input id="moderator-username" name="username" type="hidden">
           <div class="moderator-permissions" id="moderator-permissions"></div>
-          <button class="admin-primary" type="submit">Moderator speichern</button>
+          <button class="admin-primary" id="moderator-save" type="submit" disabled>Moderator speichern</button>
         </form>
         <div class="admin-notice" id="moderator-notice" role="status" aria-live="polite"></div>
         <div id="moderator-list" class="moderator-list"></div>

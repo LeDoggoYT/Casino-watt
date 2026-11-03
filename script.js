@@ -39,6 +39,7 @@ const ui = {
   loginMessage: document.querySelector("#login-message"),
   registerMessage: document.querySelector("#register-message"),
   headerUser: document.querySelector("#header-user"),
+  homeBalance: document.querySelector("#home-balance"),
   headerAvatar: document.querySelector("#header-avatar"),
   avatarOpen: document.querySelector("#avatar-open"),
   avatarDialog: document.querySelector("#avatar-dialog"),
@@ -54,7 +55,7 @@ const ui = {
   cropZoom: document.querySelector("#crop-zoom"),
   logout: document.querySelector("#logout"),
   navLinks: [...document.querySelectorAll(".nav-link")],
-  views: { home: document.querySelector("#home-view"), game: document.querySelector("#game-view"), poker: document.querySelector("#poker-view"), chicken: document.querySelector("#chicken-view"), leaderboard: document.querySelector("#leaderboard-view"), upgrades: document.querySelector("#upgrades-view") },
+  views: { home: document.querySelector("#home-view"), game: document.querySelector("#game-view"), poker: document.querySelector("#poker-view"), chicken: document.querySelector("#chicken-view"), mines: document.querySelector("#mines-view"), leaderboard: document.querySelector("#leaderboard-view"), upgrades: document.querySelector("#upgrades-view") },
   chickenBalance: document.querySelector("#chicken-balance"),
   chickenBet: document.querySelector("#chicken-bet"),
   chickenChips: document.querySelector("#chicken-chips"),
@@ -110,6 +111,7 @@ const ui = {
   customBetClose: document.querySelector("#custom-bet-close"),
   customBetCancel: document.querySelector("#custom-bet-cancel")
 };
+ui.chips.filter(chip => /^\d+$/.test(chip.dataset.bet)).forEach((chip, index) => { chip.dataset.chipIndex = index; });
 
 const state = {
   token: localStorage.getItem(TOKEN_KEY),
@@ -140,6 +142,29 @@ function formatChips(value) {
     minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
     maximumFractionDigits: 1
   }).format(value ?? 0);
+}
+
+const CHIP_DENOMINATIONS = Array.from({length: 16}, (_, power) => [1, 2, 5].map(part => part * 10 ** power))
+  .flat().filter(value => value >= 5 && Number.isSafeInteger(value));
+function chipLabel(value) {
+  if (value >= 1_000_000_000) return `${value / 1_000_000_000}Mrd`;
+  if (value >= 1_000_000) return `${value / 1_000_000}M`;
+  if (value >= 1_000) return `${value / 1_000}k`;
+  return String(value);
+}
+function syncChipValues() {
+  const target = Math.max(5, state.balance / 200);
+  const start = Math.max(0, CHIP_DENOMINATIONS.findLastIndex(value => value <= target));
+  const keys = ["bet", "chickenBet", "slotBet", "pinballBet", "crashBet", "minesBet"];
+  document.querySelectorAll(".chip[data-chip-index]").forEach(chip => {
+    const value = CHIP_DENOMINATIONS[Math.min(start + Number(chip.dataset.chipIndex), CHIP_DENOMINATIONS.length - 1)];
+    const key = keys.find(name => Object.hasOwn(chip.dataset, name));
+    if (!key) return;
+    chip.dataset[key] = String(value);
+    chip.querySelector("span").textContent = chipLabel(value);
+    chip.setAttribute("aria-label", `${formatChips(value)} Chips setzen`);
+    chip.title = `${formatChips(value)} Chips`;
+  });
 }
 
 function formatPercent(value) {
@@ -254,7 +279,7 @@ async function establishSession(token) {
   state.selectedBet = current.round?.bet ?? 0;
   state.settled = false;
   ui.headerUser.textContent = state.user.username;
-  document.querySelector("#admin-link").hidden = !me.adminAccess?.permissions?.includes("view_players");
+  document.querySelector("#admin-link").hidden = !me.adminAccess;
   renderAvatar(ui.headerAvatar, state.user);
   ui.authScreen.hidden = true;
   ui.suspendedScreen.hidden = true;
@@ -542,6 +567,8 @@ async function renderGame(animate = false) {
 }
 
 function updateControls() {
+  syncChipValues();
+  ui.homeBalance.textContent = formatChips(state.balance);
   const isBetting = !state.round && !state.settled;
   const isPlaying = state.round?.status === "active";
   const available = state.balance - state.selectedBet;
@@ -575,7 +602,7 @@ function addBet(value) {
 
 function openCustomBet(game = "game") {
   state.customBetGame = game;
-  const available = state.balance - (game === "slots" ? slotsBet : game === "crash" ? crashSelectedBet : game === "pinball" ? pinballSelectedBet : game === "chicken" ? state.chickenBet : state.selectedBet);
+  const available = state.balance - (game === "slots" ? slotsBet : game === "crash" ? crashSelectedBet : game === "pinball" ? pinballSelectedBet : game === "mines" ? minesSelectedBet : game === "chicken" ? state.chickenBet : state.selectedBet);
   if (available < 5) return;
   ui.customBetInput.max = String(available);
   ui.customBetInput.value = String(Math.min(available, 100));
@@ -587,7 +614,7 @@ function openCustomBet(game = "game") {
 
 function submitCustomBet(event) {
   event.preventDefault();
-  const available = state.balance - (state.customBetGame === "slots" ? slotsBet : state.customBetGame === "crash" ? crashSelectedBet : state.customBetGame === "pinball" ? pinballSelectedBet : state.customBetGame === "chicken" ? state.chickenBet : state.selectedBet);
+  const available = state.balance - (state.customBetGame === "slots" ? slotsBet : state.customBetGame === "crash" ? crashSelectedBet : state.customBetGame === "pinball" ? pinballSelectedBet : state.customBetGame === "mines" ? minesSelectedBet : state.customBetGame === "chicken" ? state.chickenBet : state.selectedBet);
   const amount = Number(ui.customBetInput.value.replace?.(",", ".") ?? ui.customBetInput.value);
   if (!Number.isFinite(amount) || amount < 5 || amount > available || amount * 2 !== Math.round(amount * 2)) {
     ui.customBetError.textContent = `Bitte einen Betrag zwischen 5 und ${formatChips(available)} in 0,5er-Schritten eingeben.`;
@@ -597,6 +624,7 @@ function submitCustomBet(event) {
   if (state.customBetGame === "crash") addCrashBet(String(amount));
   else if (state.customBetGame === "slots") addSlotsBet(String(amount));
   else if (state.customBetGame === "pinball") addPinballBet(String(amount));
+  else if (state.customBetGame === "mines") addMinesBet(String(amount));
   else if (state.customBetGame === "chicken") addChickenBet(String(amount));
   else addBet(String(amount));
 }
@@ -629,6 +657,7 @@ function newRound() {
 
 function setView(view) {
   if (!ui.views[view]) return;
+  if (view === "home") ui.homeBalance.textContent = formatChips(state.balance);
   if (state.activeView === "poker" && view !== "poker" && typeof stopPoker === "function") stopPoker();
   state.activeView = view;
   Object.entries(ui.views).forEach(([name, element]) => { element.hidden = name !== view; });
@@ -643,7 +672,8 @@ function setView(view) {
   if (view === "upgrades") loadUpgrades();
   if (view === "chicken") loadChicken();
   if (view === "slots") updateSlotsControls();
-  if (view === "pinball") updatePinballControls();
+  if (view === "pinball") { updatePinballControls(); loadPinballConfig(); }
+  if (view === "mines") loadMines();
   if (view === "crash") startCrash();
   if (view === "loot") loadLoot();
   if (view === "market") loadMarket();
@@ -663,7 +693,6 @@ async function animateChickenStep(data) {
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const pause = (ms) => new Promise((resolve) => setTimeout(resolve, reduced ? 0 : ms));
   ui.chickenLanes[step - 1]?.classList.add("is-crossing");
-  ui.chickenMessage.textContent = "Das Huhn überquert die nächste Spur …";
   ui.chickenActor.classList.add("is-walking");
   positionChicken(step);
   await pause(220);
@@ -681,6 +710,7 @@ async function animateChickenStep(data) {
 }
 
 function updateChickenControls() {
+  syncChipValues();
   const locked = Boolean(state.chickenRound) || state.busy;
   if (!state.chickenRound && state.chickenBet > state.balance) state.chickenBet = 0;
   const available = state.balance - state.chickenBet;
@@ -725,13 +755,13 @@ function renderChicken(result = state.chickenResult) {
   ui.chickenPayout.textContent = formatChips(round?.payout ?? result?.payout ?? 0);
   if (result) {
     ui.chickenMessage.textContent = result.won
-      ? `${result.steps} Schritte geschafft! ${formatChips(result.payout)} Chips ausgezahlt.`
-      : `Leider gescheitert. ${formatChips(-result.netResult)} Chips verloren.`;
-    if (result.refilled) ui.chickenMessage.textContent += ` Dein Kontostand wurde auf ${formatChips(state.balance)} Chips aufgefüllt.`;
-  } else if (round) {
-    ui.chickenMessage.textContent = round.steps ? `${round.steps} von ${ui.chickenLanes.length} Spuren geschafft. Weitergehen oder Gewinn sichern?` : "Runde gestartet. Wage den ersten Schritt!";
+      ? `${result.steps} Schritte geschafft. ${formatChips(result.payout)} Chips ausgezahlt.`
+      : `${formatChips(-result.netResult)} Chips verloren.`;
+    ui.chickenMessage.classList.add("visually-hidden");
+    ui.chickenMessage.hidden = false;
   } else {
-    ui.chickenMessage.textContent = "Die Prozentzahl zeigt die Erfolgschance pro Schritt. Mit jedem Schritt steigt das Risiko, den Einsatz zu verlieren.";
+    ui.chickenMessage.textContent = "";
+    ui.chickenMessage.hidden = true;
   }
 }
 
@@ -746,7 +776,7 @@ async function loadChicken() {
     state.balance = data.balance;
     ui.balance.textContent = formatChips(data.balance);
     renderChicken();
-  } catch (error) { ui.chickenMessage.textContent = error.message; }
+  } catch (error) { ui.chickenMessage.textContent = error.message; ui.chickenMessage.classList.remove("visually-hidden"); ui.chickenMessage.hidden = false; }
   finally {
     state.busy = false;
     updateChickenControls();
@@ -759,6 +789,8 @@ async function chickenRequest(action) {
   const bet = state.chickenBet;
   if (action === "start" && (!Number.isFinite(bet) || bet < 5 || bet * 2 !== Math.round(bet * 2) || bet > state.balance)) {
     ui.chickenMessage.textContent = `Bitte 5 bis ${formatChips(state.balance)} Chips in 0,5er-Schritten setzen.`;
+    ui.chickenMessage.classList.remove("visually-hidden");
+    ui.chickenMessage.hidden = false;
     return;
   }
   state.busy = true;
@@ -778,6 +810,8 @@ async function chickenRequest(action) {
     state.busy = false;
     renderChicken();
     ui.chickenMessage.textContent = error.message;
+    ui.chickenMessage.classList.remove("visually-hidden");
+    ui.chickenMessage.hidden = false;
   }
   finally {
     state.busy = false;

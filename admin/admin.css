@@ -286,3 +286,73 @@ button:disabled { opacity: .35; cursor: not-allowed; }
   .moderator-row { flex-wrap: wrap; padding: 16px 18px; }
   .moderator-row span { flex-basis: 100%; }
 }
+
+/* Kompakte Verwaltung für große Spielerlisten */
+.admin-panel-header { gap: 22px; }
+.admin-search { width: min(100%, 390px); }
+.admin-search input { flex: 1; min-width: 0; }
+.admin-results { margin: 0; padding: 13px 30px; border-bottom: 1px solid var(--line-soft); color: var(--muted); font-family: var(--font-ui); font-size: 12px; }
+.admin-player { display: block; padding: 0; }
+.admin-player-summary { display: grid; grid-template-columns: minmax(145px, 1.3fr) minmax(110px, .8fr) minmax(90px, .7fr) auto; gap: 16px; align-items: center; min-height: 68px; padding: 10px 30px; cursor: pointer; list-style: none; }
+.admin-player-summary::-webkit-details-marker { display: none; }
+.admin-player-summary:hover { background: #293b30; }
+.admin-player-summary:focus-visible { outline: 2px solid var(--gold); outline-offset: -3px; }
+.admin-player[open] .admin-player-summary { background: #293b30; }
+.admin-player-name { font-family: var(--font-ui); font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.admin-player-money { color: var(--gold-light); font-family: var(--font-ui); font-size: 13px; font-weight: 700; }
+.admin-player-status { color: var(--muted); font-family: var(--font-ui); font-size: 12px; }
+.admin-player-status .admin-badge { margin: 0; }
+.admin-player-open { color: var(--cream); font-family: var(--font-ui); font-size: 12px; white-space: nowrap; }
+.admin-player-open span { display: inline-block; margin-left: 5px; font-size: 18px; transition: transform .18s ease; }
+.admin-player[open] .admin-player-open span { transform: rotate(180deg); }
+.admin-player-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 19px; padding: 18px 30px 24px; border-top: 1px solid var(--line-soft); background: #1b2921; }
+.admin-player-meta { grid-column: 1 / -1; margin: 0; color: var(--muted); font-family: var(--font-ui); font-size: 12px; }
+.admin-field { min-width: 0; }
+.admin-field-row { gap: 8px; }
+.admin-field-row input { min-width: 0; }
+.admin-field-help, .admin-delete-field p { margin: 0; color: var(--muted); font-family: var(--font-ui); font-size: 12px; line-height: 1.4; }
+.admin-delete-field { padding: 13px; border: 1px solid #764442; border-radius: 10px; background: #322522; }
+.admin-delete-field .delete-start { justify-self: start; }
+.admin-delete-confirm { display: grid; gap: 9px; }
+.admin-delete-confirm[hidden] { display: none; }
+.admin-delete-confirm input { width: 100%; }
+.admin-delete-confirm .admin-suspension-actions { flex-wrap: wrap; }
+.admin-pagination { gap: 12px; }
+
+.admin-primary, .admin-search button, .admin-action, .admin-pagination button, .admin-logout {
+  min-height: 40px; padding: 0 15px; border-radius: 10px; font-weight: 700; line-height: 1.2;
+  box-shadow: inset 0 1px rgb(255 255 255 / 7%);
+  transition: transform .15s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.admin-primary, .admin-search button { border-color: #d9ac58; color: #182019; background: linear-gradient(180deg, #e6c477, #c99e4e); }
+.admin-primary:hover:not(:disabled), .admin-search button:hover:not(:disabled) { background: #f0d18a; transform: translateY(-1px); box-shadow: 0 5px 15px rgb(0 0 0 / 18%); }
+.admin-action:hover:not(:disabled), .admin-pagination button:hover:not(:disabled), .admin-logout:hover { transform: translateY(-1px); }
+.admin-action--danger { border-color: #9d5554; color: #ffd5cf; background: #4e2d2b; }
+.admin-action--danger:hover:not(:disabled) { border-color: #cf7770; background: #693a36; }
+.admin-action--release { border-color: #668b6d; color: #e1f5e0; background: #31503a; }
+.admin-action--release:hover:not(:disabled) { border-color: #85ac88; background: #3e6548; }
+.admin-page button:focus-visible, .admin-page a:focus-visible, .moderator-form input:focus-visible { outline: 2px solid var(--gold-light); outline-offset: 3px; }
+.admin-page button:disabled { opacity: .45; transform: none; box-shadow: none; }
+
+.moderator-form { max-width: 690px; }
+.moderator-search-results { display: grid; max-height: 275px; overflow: auto; padding: 5px; border: 1px solid var(--line); border-radius: 10px; background: #213127; color: var(--muted); font-size: 13px; }
+.moderator-search-results[hidden], .moderator-selected[hidden] { display: none; }
+.moderator-result { display: flex; gap: 12px; justify-content: space-between; align-items: center; min-height: 43px; padding: 8px 11px; border: 0; border-radius: 8px; color: var(--cream); background: transparent; cursor: pointer; text-align: left; font: inherit; }
+.moderator-result:hover, .moderator-result:focus-visible { background: #385340; }
+.moderator-result span { color: var(--muted); font-size: 12px; }
+.moderator-selected { padding: 10px 12px; border: 1px solid #6e875e; border-radius: 9px; color: #e4f2d9; background: #2b4332; font-size: 13px; }
+.moderator-permissions label { min-height: 42px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: #26392c; }
+.moderator-permissions input { accent-color: var(--gold); width: 17px; height: 17px; }
+
+@media (max-width: 800px) {
+  .admin-player-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .admin-results { padding-inline: 18px; }
+  .admin-player-summary { grid-template-columns: 1fr auto; gap: 6px 12px; padding: 12px 18px; }
+  .admin-player-money { grid-column: 1; }
+  .admin-player-status { grid-column: 2; grid-row: 1; text-align: right; }
+  .admin-player-open { grid-column: 2; grid-row: 2; }
+  .admin-player-actions { grid-template-columns: 1fr; padding: 18px; }
+  .admin-pagination { padding-inline: 16px; }
+}

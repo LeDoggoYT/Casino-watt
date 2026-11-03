@@ -662,30 +662,6 @@ a:focus-visible {
   margin-top: 5px;
 }
 
-.rules-note {
-  padding-top: 12px;
-  border-top: 1px solid var(--line-soft);
-  color: #908f88;
-  font-size: 10px;
-}
-
-.site-footer {
-  display: flex;
-  width: min(1440px, 92vw);
-  margin: 0 auto;
-  padding: 10px 0 25px;
-  align-items: center;
-  justify-content: space-between;
-  color: #74766f;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 10px;
-  letter-spacing: .06em;
-}
-
-.site-footer p {
-  margin: 0;
-}
-
 @media (max-width: 960px) {
   .game-shell {
     grid-template-columns: 1fr;
@@ -801,12 +777,6 @@ a:focus-visible {
     height: 55px;
   }
 
-  .site-footer {
-    display: grid;
-    gap: 5px;
-    width: 100%;
-    padding: 22px 18px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1122,7 +1092,6 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); ou
 .action--new { border-color: var(--line); }
 .rules summary { min-height: 54px; font-family: var(--font-ui); font-size: 12px; letter-spacing: 0; text-transform: none; }
 .rules-content { font-family: var(--font-ui); font-size: 13px; }
-.site-footer { width: min(1440px, calc(100% - 48px)); color: var(--muted); font-family: var(--font-ui); font-size: 11px; letter-spacing: 0; }
 
 .auth-screen, .suspended-screen { background: radial-gradient(circle at 50% 25%, #234034, transparent 35rem); }
 .auth-card, .suspended-card, .admin-login-card { border: 1px solid var(--line); border-radius: 20px; background: var(--panel); box-shadow: var(--shadow); }
@@ -1181,7 +1150,6 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); ou
   .section-header { gap: 12px; padding: 24px 18px; }
   .section-header h1 { font-size: 28px; }
   .upgrade-balance { padding: 12px; }
-  .site-footer { width: 100%; padding: 22px 18px; }
 }
 @media (max-width: 440px) {
   .brand-name { display: inline; font-size: 16px; }
@@ -1196,8 +1164,7 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); ou
 .home-view { width: min(1200px, calc(100% - 48px)); margin: 28px auto 48px; }
 .home-hero { display: flex; min-height: 250px; padding: clamp(28px, 5vw, 56px); align-items: center; justify-content: space-between; gap: 24px; overflow: hidden; border: 1px solid #46614d; border-radius: var(--radius); background: radial-gradient(circle at 80% 50%, #2a654b, transparent 38%), linear-gradient(120deg, #203d30, #173227); box-shadow: var(--shadow); }
 .home-hero h1 { margin: 10px 0 12px; font-size: clamp(34px, 5vw, 58px); font-weight: 750; letter-spacing: -.055em; line-height: 1.08; }
-.home-hero p { max-width: 460px; margin: 0; color: #d0ded2; font-size: 15px; }
-.home-hero-mark { display: grid; width: clamp(110px, 18vw, 190px); aspect-ratio: 1; flex: 0 0 auto; place-items: center; border: 1px solid rgb(234 213 155 / 42%); border-radius: 28%; color: var(--gold-light); font-size: clamp(60px, 10vw, 110px); font-weight: 800; line-height: 1; transform: rotate(-12deg); }
+.home-hero .home-wallet { min-width: 240px; max-width: 100%; flex: 0 0 auto; padding: 20px 24px; box-shadow: 0 12px 30px rgb(0 0 0 / 18%); }
 .games-section { margin-top: 36px; }
 .games-heading { display: flex; margin-bottom: 18px; align-items: end; justify-content: space-between; gap: 16px; }
 .games-heading h2 { margin: 4px 0 0; font-size: 25px; letter-spacing: -.035em; }
@@ -1215,7 +1182,7 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); ou
 .game-tile-art--slots { color: #e8ce8e; background: radial-gradient(circle, #605038, #37362b); }
 .game-tile-art--loot { color: #d6c5e7; background: radial-gradient(circle, #514560, #34303e); }
 .game-tile-art--mines { color: #e1bcb4; background: radial-gradient(circle, #624744, #3b302f); }
-.game-tile-body { display: flex; min-height: 178px; padding: 22px; flex-direction: column; align-items: flex-start; }
+.game-tile-body { display: flex; min-height: 150px; padding: 22px; flex-direction: column; align-items: flex-start; }
 .game-tile-status { padding: 4px 9px; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-size: 11px; font-weight: 600; }
 .game-tile-status.is-available { border-color: #537a5d; color: #bce0b9; background: #25432f; }
 .game-tile h3 { margin: 14px 0 3px; font-size: 21px; letter-spacing: -.035em; }
@@ -1283,11 +1250,13 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); ou
 @media (max-width: 640px) {
   .home-view { width: calc(100% - 24px); margin: 14px auto 32px; }
   .home-hero { min-height: 210px; padding: 26px; }
-  .home-hero-mark { width: 90px; font-size: 56px; }
   .games-section { margin-top: 28px; }
 }
+@media (max-width: 700px) {
+  .home-hero { align-items: stretch; flex-direction: column; }
+  .home-hero .home-wallet { min-width: 0; width: 100%; }
+}
 @media (max-width: 480px) {
-  .home-hero-mark { display: none; }
   .game-grid { grid-template-columns: 1fr; gap: 14px; }
   .game-tile-art { height: 124px; }
   .game-tile-body { min-height: 0; }
@@ -1403,20 +1372,56 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); ou
 @media (max-width: 850px) { .pinball-view { grid-template-columns: minmax(0, 1fr); } }
 .pinball-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
 .pinball-header h1 { margin: 8px 0; font-size: 32px; }
-.pinball-board { padding: 16px 18px 24px; border: 1px solid var(--line); border-radius: var(--radius); background: radial-gradient(ellipse at top, #254438, var(--panel-deep) 70%); box-shadow: inset 0 1px 0 #ffffff08, 0 20px 60px #0002; }
+.pinball-board { padding: 16px 18px 24px; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: radial-gradient(ellipse at top, #254438, var(--panel-deep) 70%); box-shadow: inset 0 1px 0 #ffffff08, 0 20px 60px #0002; }
 #pinball-board { display: block; width: 100%; height: auto; overflow: visible; }
 .pinball-peg { fill: #eef5fa; }
 .pinball-ball { fill: #f6ca6d; filter: drop-shadow(0 0 6px #ffc35e); }
 .pinball-slots { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 4px; }
-.pinball-slots span { padding: 12px 0; border-radius: 6px; text-align: center; background: var(--slot-color); color: #17202a; font-size: clamp(9px, 1.8vw, 15px); font-weight: 800; transition: transform .2s, box-shadow .2s; }
+.pinball-slots span { display: flex; min-height: 42px; padding: 8px 2px; align-items: center; justify-content: center; border-radius: 6px; text-align: center; background: var(--slot-color); color: #17202a; font-size: clamp(10px, 1.5vw, 15px); font-weight: 800; transition: transform .2s, box-shadow .2s; }
+.pinball-slots strong { font-size: inherit; line-height: 1; }
 .pinball-slots .is-hit { transform: translateY(-6px); box-shadow: 0 0 0 2px #fff, 0 0 25px var(--slot-color); }
 .pinball-controls { display: grid; gap: 14px; margin-top: 24px; padding: 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
 #pinball-play { min-height: 58px; border: 0; border-radius: 10px; background: #d5b875; color: #172019; font: 750 18px/1.2 var(--font-ui); cursor: pointer; }
 #pinball-play:hover { background: #ead59b; }
 .pinball-controls button:disabled { opacity: .5; cursor: wait; }
 #pinball-message { min-height: 24px; margin: 0; color: var(--muted); font-size: 13px; }
+#pinball-message.visually-hidden { min-height: 0; }
+@media (max-width: 700px) { #pinball-board, .pinball-slots { min-width: 600px; } }
 @media (max-width: 480px) { .pinball-board { padding: 10px 8px 16px; } .pinball-slots { gap: 2px; } .pinball-header .chicken-wallet { min-width: 0; padding: 12px; } }
 @media (prefers-reduced-motion: reduce) { .pinball-slots span { transition: none; } }
+.mines-view { width: min(1260px, calc(100% - 40px)); margin: 28px auto 60px; }
+.mines-layout { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 22px; align-items: start; }
+.mines-controls, .mines-board-panel { padding: 24px; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); box-shadow: var(--shadow); }
+.mines-controls { display: grid; gap: 18px; }
+.mines-controls .chip-row { margin: 0; }
+.mines-count h2 { margin: 0 0 10px; font-size: 16px; }
+.mines-count-controls { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-deep); }
+.mines-count-controls button { width: 52px; height: 48px; border: 0; color: var(--gold-light); background: transparent; cursor: pointer; font-size: 24px; }
+.mines-count-controls button:hover:not(:disabled) { background: #375044; }
+.mines-count-controls strong { font-size: 24px; color: var(--cream); }
+.mines-presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 8px; }
+.mines-presets button { padding: 8px 0; border: 1px solid var(--line); border-radius: 8px; color: var(--cream); background: var(--panel-deep); cursor: pointer; }
+.mines-presets button.is-active, .mines-presets button:hover:not(:disabled) { border-color: var(--gold); color: #172019; background: var(--gold); }
+.mines-controls button:disabled { opacity: .5; cursor: default; }
+.mines-stats { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.mines-stats > div { display: flex; justify-content: space-between; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+.mines-stats > div:last-child { border-bottom: 0; }
+.mines-stats span { color: var(--muted); }
+.mines-stats strong { color: var(--gold-light); font-variant-numeric: tabular-nums; }
+#mines-message { margin: 0; color: #f0a19f; }
+.mines-board-panel { display: grid; gap: 18px; min-width: 0; background: linear-gradient(145deg, #1e2829, #141d1d); }
+.mines-multipliers { display: flex; flex-wrap: wrap; gap: 6px; }
+.mines-multipliers span { flex: 1 1 70px; padding: 9px 4px; border: 1px solid #80533f; border-radius: 7px; color: #e6aa83; text-align: center; font-size: 13px; }
+.mines-multipliers span.is-current { border-color: var(--gold); color: var(--gold-light); background: #453522; }
+.mines-grid { display: grid; width: min(100%, 560px); grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(7px, 1.4vw, 16px); margin: 0 auto; }
+.mines-tile { display: grid; aspect-ratio: 1; place-items: center; border: 1px solid #35433f; border-radius: 16px; color: #6ed4dc; background: linear-gradient(145deg, #34413f, #242e2d); box-shadow: 0 5px 0 #101817, 0 12px 18px #0004; cursor: pointer; font-size: clamp(26px, 4vw, 48px); transition: transform .15s, background .15s; }
+.mines-tile:hover:not(:disabled) { transform: translateY(-3px); background: #405852; }
+.mines-tile:disabled { cursor: default; }
+.mines-tile.is-gem { border-color: #458c8c; background: #234d4d; text-shadow: 0 0 18px #87e4e7; }
+.mines-tile.is-mine { color: #c98360; background: #45322d; }
+.mines-tile.is-hit { color: #ffe4ae; border-color: #e48263; background: #8b3f32; box-shadow: 0 0 22px #d85440; }
+@media (max-width: 830px) { .mines-layout { grid-template-columns: 1fr; } .mines-view { width: calc(100% - 24px); margin: 14px auto 40px; } }
+@media (max-width: 480px) { .mines-controls, .mines-board-panel { padding: 16px; } .mines-tile { border-radius: 10px; } }
 .crash-view { width: min(1300px, calc(100% - 40px)); margin: 28px auto 60px; display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; }
 .crash-view[hidden] { display: none; }
 .crash-header { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
@@ -1557,7 +1562,6 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); ou
 .loot-reward-info { display: grid; gap: 6px; min-width: 0; }
 .loot-reference-price { color: var(--muted); font-size: 11px; line-height: 1.5; }
 .loot-reference-price:hover { color: var(--gold-light); }
-#loot-pricing { margin-top: 18px; line-height: 1.6; }
 
 /* Shared player marketplace */
 .market-summary { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }

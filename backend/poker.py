@@ -282,6 +282,7 @@ def install(app, context):
                     raise ApiError(409, "Beide Spieler brauchen mindestens 10 Chips.")
                 if (db.execute("SELECT 1 FROM active_rounds WHERE user_id=?", (pid,)).fetchone()
                         or db.execute("SELECT 1 FROM active_chicken_rounds WHERE user_id=?", (pid,)).fetchone()
+                        or db.execute("SELECT 1 FROM active_mines_rounds WHERE user_id=?", (pid,)).fetchone()
                         or db.execute("SELECT 1 FROM crash_bets WHERE user_id=? AND payout IS NULL", (pid,)).fetchone()):
                     raise ApiError(409, "Ein Spieler muss zuerst seine laufende Runde beenden.")
             for pid in players:

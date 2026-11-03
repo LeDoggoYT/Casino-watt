@@ -64,7 +64,8 @@ async function loadMarket() {
   if (marketOwner !== token) {
     marketOwner = token; marketData = null;
     for (const key of ["inventory", "listings", "prices"]) marketUI[key].replaceChildren();
-    marketUI.message.textContent = "Handelsplatz wird geladen …";
+    marketUI.message.textContent = "";
+    marketUI.message.hidden = true;
   }
   marketLoading = true;
   try {
@@ -73,8 +74,9 @@ async function loadMarket() {
     // Avoid erasing an offer price while the user is typing.
     marketData = data; marketClockOffset = data.serverTime * 1000 - Date.now();
     if (!document.activeElement?.closest(".market-offer-form")) acceptMarket(data);
-    marketUI.message.textContent = "Handel mit Spielchips · keine Gebühren";
-  } catch (error) { if (state.token === token) marketUI.message.textContent = error.message; }
+    marketUI.message.textContent = "";
+    marketUI.message.hidden = true;
+  } catch (error) { if (state.token === token) { marketUI.message.textContent = error.message; marketUI.message.hidden = false; } }
   finally { marketLoading = false; }
 }
 async function marketAction(action, payload) {
@@ -85,10 +87,12 @@ async function marketAction(action, payload) {
     const data = await api(`/api/market/${action}`, {method: "POST", signal: AbortSignal.timeout(8000), body: JSON.stringify({...payload, actionId: actionId()})});
     if (state.token !== token) return;
     acceptMarket(data);
-    marketUI.message.textContent = ({list: "Dein Angebot ist online.", buy: "Gekauft! Der Gegenstand ist jetzt in deinem Inventar.", cancel: "Angebot zurückgenommen.", "quick-sell": "Verkauft! Die Chips wurden gutgeschrieben."})[action];
+    marketUI.message.textContent = "";
+    marketUI.message.hidden = true;
   } catch (error) {
     if (state.token !== token) return;
     marketUI.message.textContent = `${error.message} Bestand wird neu geprüft.`;
+    marketUI.message.hidden = false;
     try { const data = await api("/api/market/current", {signal: AbortSignal.timeout(8000)}); if (state.token === token) acceptMarket(data); } catch {}
   } finally { marketBusy = false; state.busy = false; if (state.token === token) renderMarket(); updateControls(); }
 }

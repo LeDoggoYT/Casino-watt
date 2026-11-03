@@ -28,6 +28,10 @@ Damit sinken vor allem die für SQLite teuren Schreibzugriffe sowie die dauerhaf
 
 Poker ist ein Online-Tisch für zwei Spieler. Der Host gibt der Lobby einen Namen; andere Spieler wählen sie aus der Liste offener Lobbys. Beide zahlen zu Beginn 10 virtuelle Chips. Pro Phase können Spieler die nächste Gemeinschaftskarte anfordern, mitgehen, in 0,5-Chip-Schritten um mindestens 5 Chips erhöhen oder passen. Eine Erhöhung ist auf den von beiden Spielern deckbaren Betrag begrenzt. Karten, Zugfolge, Pot, Handrang und Auszahlung werden auf dem Server berechnet. Die Hand-Rangfolgen-Grafik steht links neben dem Tisch.
 
+## Mines
+
+Mines hat ein 5×5-Spielfeld mit 1 bis 20 wählbaren Minen. Der Einsatz wird mit denselben Chips wie bei den anderen Spielen gesetzt. Nach jedem sicheren Feld kann der Gewinn ausgezahlt werden; eine Mine beendet die Runde ohne Auszahlung. Minenpositionen, laufende Runden und das letzte Ergebnis werden auf dem Server gespeichert. Der Auszahlungsfaktor basiert auf der Überlebenswahrscheinlichkeit mit 3 % Hausvorteil und wird auf halbe Chips abgerundet.
+
 ## Upgrades und Einsätze
 
 Spieler können im Bereich **Upgrades** Chips in sieben dauerhafte Verbesserungen investieren: Startkapital, Glück, Blackjack-Bonus, Verlustschutz, Serienbonus, Doppel-Profi und Tagesbonus. Käufe, Level, Tagesbonus und alle Auswirkungen auf Auszahlungen werden serverseitig gespeichert und berechnet. Jedes Upgrade besitzt fünf Level; der Preis verdoppelt sich nach jedem Kauf.
@@ -68,7 +72,9 @@ Danach `http://127.0.0.1:8080` öffnen. Die lokale API-Adresse in `script.js` un
     DATABASE_PATH=/home/DEIN_PYTHONANYWHERE_NAME/Casino-Watt/backend/data/watt-casino.sqlite
     FRONTEND_ORIGINS=https://wigipedia.netlify.app
 
-Das Admin-Panel unter `/admin/` verwendet die normale Spielersitzung. Das bestehende Spielerkonto `Tiago` hat vollen Zugriff; Moderatoren und ihre Rechte werden dort verwaltet. Tiagos Spielerpasswort sollte sicher und nur ihm bekannt sein.
+Das Admin-Panel unter `/admin/` verwendet die normale Spielersitzung. Das bestehende Spielerkonto `Tiago` hat vollen Zugriff; Moderatoren werden über die Spielersuche ausgewählt und ihre Rechte dort verwaltet. Das Recht „Nur eigenes Guthaben ändern“ zeigt dem Moderator nur sein Konto und erlaubt keine Änderungen an anderen Guthaben. Tiagos Spielerpasswort sollte sicher und nur ihm bekannt sein.
+
+Beim Sperren eines Kontos werden dessen bekannte IP-Adressen ebenfalls gesperrt; von diesen Adressen sind dann auch neue Registrierungen und Logins blockiert. Das Aufheben der Kontosperre entfernt die zugehörigen IP-Sperren. Tiago kann ein Spielerkonto vollständig löschen, einschließlich Spielstand, Sitzungen, Profilbild und zugehöriger IP-Sperren. Bereits bestehende Konten haben erst dann eine bekannte IP-Adresse, wenn sie nach dem Update wieder eine Anfrage senden. Andere Anschlüsse oder VPNs können eine IP-Sperre umgehen; gemeinsam genutzte Anschlüsse können weitere Spieler betreffen.
 
 4. Unter Web: Add a new web app → Manual configuration → Python 3.13.
 5. Öffne die erzeugte WSGI-Datei. Ersetze ihren Inhalt durch `backend/pythonanywhere_wsgi.py.example`; darin `DEIN_PYTHONANYWHERE_NAME` durch deinen Account-Namen ersetzen.

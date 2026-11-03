@@ -6,7 +6,7 @@
   <meta name="description" content="Watt Casino – kostenloses Blackjack mit virtuellem Spielgeld.">
   <title>Wigipeadia</title>
   <link rel="icon" href="https://www.wikipedia.org/static/favicon/wikipedia.ico" sizes="any">
-  <link rel="stylesheet" href="style.css?v=pinball-8">
+  <link rel="stylesheet" href="style.css?v=mines-1">
 </head>
 <body>
   <aside id="win-notifications" class="win-notifications" aria-label="Große Gewinne" aria-live="polite" aria-relevant="additions"></aside>
@@ -16,7 +16,6 @@
       <div class="casino-intro__crest"><span>W</span></div>
       <div class="casino-intro__name">Watt <strong>Casino</strong></div>
       <div class="casino-intro__rule"></div>
-      <div class="casino-intro__caption">Willkommen am Tisch</div>
     </div>
   </div>
   <main class="auth-screen" id="auth-screen">
@@ -26,9 +25,7 @@
         <span class="brand-name">Watt <strong>Casino</strong></span>
       </div>
       <div class="auth-intro">
-        <span>Persönlicher Spieltisch</span>
         <h1 id="auth-title">Willkommen am Tisch.</h1>
-        <p>Melden Sie sich an, um Ihren Kontostand, Ihre Runden und Statistiken sicher fortzuführen.</p>
       </div>
 
       <div class="auth-tabs" role="tablist" aria-label="Kontozugang">
@@ -53,17 +50,14 @@
         <label>
           <span>Benutzername</span>
           <input id="register-username" name="username" type="text" minlength="3" maxlength="20" pattern="[A-Za-z0-9_\-]+" autocomplete="username" required>
-          <small>3–20 Zeichen: Buchstaben, Zahlen, Unterstrich oder Bindestrich.</small>
         </label>
         <label>
           <span>Passwort</span>
           <input id="register-password" name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required>
-          <small>Mindestens 8 Zeichen.</small>
         </label>
         <p class="form-message" id="register-message" role="status" aria-live="polite"></p>
         <button class="auth-submit" type="submit"><span>Konto erstellen</span><span class="button-loader" aria-hidden="true"></span></button>
       </form>
-      <p class="auth-legal">Ausschließlich virtuelles Spielgeld. Keine Ein- oder Auszahlungen.</p>
     </section>
   </main>
 
@@ -73,9 +67,7 @@
         <span class="brand-mark" aria-hidden="true"><span>W</span></span>
         <span class="brand-name">Watt <strong>Casino</strong></span>
       </div>
-      <span class="section-kicker">Kontozugang eingeschränkt</span>
       <h1 id="suspended-title">Dieses Konto wurde gesperrt.</h1>
-      <p>Begründung der Verwaltung:</p>
       <strong class="suspension-reason-text" id="suspension-reason-text"></strong>
       <button class="suspended-logout" id="suspended-logout" type="button">Abmelden</button>
     </section>
@@ -111,52 +103,67 @@
     <main id="home-view" class="app-view home-view">
       <section class="home-hero" aria-labelledby="home-title">
         <div>
-          <span class="section-kicker">Watt Casino</span>
           <h1 id="home-title">Wähle dein Spiel.</h1>
-          <p>Wähle ein Spiel oder triff Freunde am Poker-Tisch.</p>
         </div>
-        <span class="home-hero-mark" aria-hidden="true">W</span>
+        <div class="chicken-wallet home-wallet"><span>Kontostand</span><strong><span id="home-balance">–</span> <small>Chips</small></strong></div>
       </section>
       <section class="games-section" aria-labelledby="games-title">
-        <div class="games-heading"><div><span class="section-kicker">Spielübersicht</span><h2 id="games-title">Unsere Spiele</h2></div><span>6 von 9 verfügbar</span></div>
+        <div class="games-heading"><div><h2 id="games-title">Unsere Spiele</h2></div></div>
         <div class="game-grid">
           <article class="game-tile game-tile--available">
             <div class="game-tile-art game-tile-art--blackjack" aria-hidden="true"><span>♠</span><span>21</span></div>
-            <div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Blackjack</h3><p>Komm so nah wie möglich an 21.</p><button class="game-tile-button" type="button" data-open-view="game">Spiel öffnen <span aria-hidden="true">→</span></button></div>
+            <div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Blackjack</h3><button class="game-tile-button" type="button" data-open-view="game">Spiel öffnen <span aria-hidden="true">→</span></button></div>
           </article>
-          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--crash" aria-hidden="true">↗</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Crash</h3><p>Gemeinsam starten. Rechtzeitig aussteigen.</p><button class="game-tile-button" type="button" data-open-view="crash">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
-          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--poker" aria-hidden="true">♣</div><div class="game-tile-body"><span class="game-tile-status is-available">Nur online</span><h3>Poker</h3><p>Erstelle eine Lobby oder wähle eine offene Lobby.</p><button class="game-tile-button" type="button" data-open-view="poker">Zum Poker <span aria-hidden="true">→</span></button></div></article>
-          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--pinball" aria-hidden="true">◎</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Pinball</h3><p>Lass die Kugel fallen und triff dein Gewinnfeld.</p><button class="game-tile-button" type="button" data-open-view="pinball">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
-          <article class="game-tile"><div class="game-tile-art game-tile-art--hilo" aria-hidden="true">↑↓</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Hi-Lo</h3><p>Ist die nächste Karte höher oder tiefer?</p></div></article>
-          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--chicken" aria-hidden="true">🐔</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Chicken</h3><p>Gehe weiter oder sichere deinen Gewinn.</p><button class="game-tile-button" type="button" data-open-view="chicken">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
-          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--slots" aria-hidden="true">✦</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Slots</h3><p>Drei Walzen, eine Gewinnlinie.</p><button class="game-tile-button" type="button" data-open-view="slots">Spiel öffnen →</button></div></article>
-          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--loot" aria-hidden="true">◇</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Loot Boxen</h3><p>Wähle eine Kiste und entdecke deinen Gewinn.</p><button class="game-tile-button" type="button" data-open-view="loot">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
-          <article class="game-tile"><div class="game-tile-art game-tile-art--mines" aria-hidden="true">✣</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Mines</h3><p>Decke Felder auf und meide die Minen.</p></div></article>
+          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--crash" aria-hidden="true">↗</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Crash</h3><button class="game-tile-button" type="button" data-open-view="crash">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
+          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--poker" aria-hidden="true">♣</div><div class="game-tile-body"><span class="game-tile-status is-available">Nur online</span><h3>Poker</h3><button class="game-tile-button" type="button" data-open-view="poker">Zum Poker <span aria-hidden="true">→</span></button></div></article>
+          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--pinball" aria-hidden="true">◎</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Pinball</h3><button class="game-tile-button" type="button" data-open-view="pinball">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
+          <article class="game-tile"><div class="game-tile-art game-tile-art--hilo" aria-hidden="true">↑↓</div><div class="game-tile-body"><span class="game-tile-status">Bald verfügbar</span><h3>Hi-Lo</h3></div></article>
+          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--chicken" aria-hidden="true">🐔</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Chicken</h3><button class="game-tile-button" type="button" data-open-view="chicken">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
+          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--slots" aria-hidden="true">✦</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Slots</h3><button class="game-tile-button" type="button" data-open-view="slots">Spiel öffnen →</button></div></article>
+          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--loot" aria-hidden="true">◇</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Loot Boxen</h3><button class="game-tile-button" type="button" data-open-view="loot">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
+          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--mines" aria-hidden="true">✣</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Mines</h3><button class="game-tile-button" type="button" data-open-view="mines">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
         </div>
       </section>
     </main>
 
+    <main id="mines-view" class="app-view mines-view" hidden>
+      <header class="pinball-header"><h1>Mines</h1><div class="chicken-wallet"><span>Kontostand</span><strong><span id="mines-balance">–</span> <small>Chips</small></strong></div></header>
+      <div class="mines-layout">
+        <section class="mines-controls chicken-controls" aria-label="Mines-Steuerung">
+          <div class="control-heading"><h2>Einsatz wählen</h2><button id="mines-clear" class="text-button" type="button">Einsatz löschen</button></div>
+          <div id="mines-chips" class="chip-row" aria-label="Chips für Mines auswählen"></div>
+          <div class="chicken-amount"><span>Aktueller Einsatz</span><strong><span id="mines-bet">0</span> <small>Chips</small></strong></div>
+          <div class="mines-count"><h2>Minen</h2><div class="mines-count-controls"><button id="mines-minus" type="button" aria-label="Eine Mine weniger">−</button><strong id="mines-count">3</strong><button id="mines-plus" type="button" aria-label="Eine Mine mehr">+</button></div><div class="mines-presets"><button type="button" data-mines-count="1">1</button><button type="button" data-mines-count="3" class="is-active">3</button><button type="button" data-mines-count="5">5</button><button type="button" data-mines-count="10">10</button><button type="button" data-mines-count="20">20</button></div></div>
+          <button id="mines-start" class="crash-primary" type="button" disabled>Spiel starten</button>
+          <button id="mines-cashout" class="crash-primary" type="button" hidden>Gewinn sichern</button>
+          <div class="mines-stats"><div><span>Diamanten</span><strong id="mines-gems">0</strong></div><div><span>Minenrisiko</span><strong id="mines-risk">0 %</strong></div><div><span>Geöffnete Felder</span><strong id="mines-opened">0 / 25</strong></div><div><span>Auszahlung</span><strong><span id="mines-payout">0</span> Chips</strong></div></div>
+          <p id="mines-message" role="status" aria-live="polite" hidden></p>
+        </section>
+        <section class="mines-board-panel" aria-label="Mines-Spielfeld"><div id="mines-multipliers" class="mines-multipliers"></div><div id="mines-grid" class="mines-grid" role="group" aria-label="25 verdeckte Felder"></div></section>
+      </div>
+    </main>
+
     <main id="market-view" class="app-view loot-view" hidden>
-      <header class="loot-header"><div><span class="section-kicker">Watt Casino · Spielerhandel</span><h1>Handelsplatz</h1><p>Gegenstände anbieten, von Spielern kaufen oder sofort verkaufen.</p></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="market-balance">–</span> <small>Chips</small></strong></div></header>
-      <div class="market-summary"><p>Mehr Gegenstände im Umlauf → Preis sinkt. Weniger → Preis steigt. Gleiche Menge → gleicher Preis. Alle 10 Minuten, höchstens ±10 %; zwischen 25 % und 200 % des Startwerts. Spielerangebote behalten ihren Preis.</p><strong id="market-clock">Preise laden …</strong></div>
-      <p id="market-message" role="status" aria-live="polite"></p>
-      <section class="loot-history-panel"><h2>Deine Gegenstände</h2><p class="loot-hint">Ein Verkauf handelt jeweils einen Gegenstand. Eingestellte Gegenstände bleiben bis zum Kauf reserviert. Schnellverkäufe entfernen den Gegenstand aus dem Umlauf.</p><div id="market-inventory" class="market-grid"></div></section>
+      <header class="loot-header"><div><h1>Handelsplatz</h1></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="market-balance">–</span> <small>Chips</small></strong></div></header>
+      <div class="market-summary"><strong id="market-clock">Preise laden …</strong></div>
+      <p id="market-message" role="status" aria-live="polite" hidden></p>
+      <section class="loot-history-panel"><h2>Deine Gegenstände</h2><div id="market-inventory" class="market-grid"></div></section>
       <section class="loot-history-panel"><h2>Angebote der Spieler</h2><div id="market-listings" class="market-grid"></div></section>
       <section class="loot-history-panel"><h2>Aktuelle Schnellverkaufspreise</h2><div id="market-prices" class="market-grid"></div></section>
     </main>
     <main id="loot-view" class="app-view loot-view" hidden>
-      <header class="loot-header"><div><span class="section-kicker">Watt Casino · Schatzkammer</span><h1>Loot Boxen</h1><p>Audio, Gaming, Technik und Autos sammeln. Alle Gegenstände sind virtuell.</p></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="loot-balance">–</span> <small>Chips</small></strong></div></header>
+      <header class="loot-header"><div><h1>Loot Boxen</h1></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="loot-balance">–</span> <small>Chips</small></strong></div></header>
       <div id="loot-boxes" class="loot-boxes" role="group" aria-label="Box auswählen"></div>
       <div class="loot-layout">
-        <section class="loot-stage" aria-label="Box öffnen"><span id="loot-stage-name" class="section-kicker">Wähle deine Box</span><div id="loot-reel" class="loot-reel" aria-hidden="true"><div id="loot-track" class="loot-track"></div><div class="loot-reel-marker"></div></div><div id="loot-result" class="loot-result" role="status" aria-live="polite">Deine nächste Überraschung wartet.</div><button id="loot-open" class="crash-primary" type="button" disabled>Boxen laden …</button><p id="loot-message" class="loot-hint" role="status">Dein Gegenstand wird in deinem virtuellen Inventar gespeichert.</p></section>
-        <section class="loot-rewards-panel"><span class="section-kicker">In dieser Box</span><h2>Mögliche Belohnungen</h2><p id="loot-reward-hint" class="loot-hint">Gewinne und Chancen werden geladen.</p><div id="loot-rewards" class="loot-rewards"></div><p id="loot-pricing" class="loot-hint"></p><p class="loot-hint">Für die Pack-Berechnung entspricht 1 CHF Referenzwert einem Spielchip. Kein Echtgeld- oder Auszahlungswert.</p></section>
+        <section class="loot-stage" aria-label="Box öffnen"><span id="loot-stage-name" class="section-kicker">Wähle deine Box</span><div id="loot-reel" class="loot-reel" aria-hidden="true"><div id="loot-track" class="loot-track"></div><div class="loot-reel-marker"></div></div><div id="loot-result" class="loot-result" role="status" aria-live="polite">Deine nächste Überraschung wartet.</div><button id="loot-open" class="crash-primary" type="button" disabled>Boxen laden …</button><p id="loot-message" class="loot-hint" role="status" hidden></p></section>
+        <section class="loot-rewards-panel"><h2>Mögliche Belohnungen</h2><div id="loot-rewards" class="loot-rewards"></div></section>
       </div>
-      <section class="loot-history-panel"><h2>Dein Inventar</h2><button class="game-tile-button" type="button" data-open-view="market">Zum Handelsplatz →</button><p class="loot-hint">Deine virtuellen Sammelgegenstände · kein Versand und kein Echtgeldwert.</p><div id="loot-inventory" class="loot-inventory"></div></section>
+      <section class="loot-history-panel"><h2>Dein Inventar</h2><button class="game-tile-button" type="button" data-open-view="market">Zum Handelsplatz →</button><div id="loot-inventory" class="loot-inventory"></div></section>
       <section class="loot-history-panel"><h2>Deine letzten Öffnungen</h2><div id="loot-history" class="loot-history"></div></section>
-      <p class="loot-photo-credit">Produktbilder: <a href="https://www.apple.com/newsroom/2024/09/get-ready-to-upgrade-to-the-new-iphone-16-apple-watch-and-airpods-lineups/" target="_blank" rel="noopener noreferrer">Apple Newsroom</a>, Hersteller und Händler. Golf: <a href="https://commons.wikimedia.org/wiki/File:2020_Volkswagen_Golf_Style_1.5_Front.jpg" target="_blank" rel="noopener noreferrer">Vauxford</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a> (freigestellt). Porsche: <a href="https://commons.wikimedia.org/wiki/File:Porsche_911_Carrera_S_(992)_-_2025-11-21.jpg" target="_blank" rel="noopener noreferrer">Bretwa, CC0</a> (freigestellt).</p>
+      <details class="loot-photo-credit"><summary>Bildquellen</summary><p>Produktbilder: <a href="https://www.apple.com/newsroom/2024/09/get-ready-to-upgrade-to-the-new-iphone-16-apple-watch-and-airpods-lineups/" target="_blank" rel="noopener noreferrer">Apple Newsroom</a>, Hersteller und Händler. Golf: <a href="https://commons.wikimedia.org/wiki/File:2020_Volkswagen_Golf_Style_1.5_Front.jpg" target="_blank" rel="noopener noreferrer">Vauxford</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a> (freigestellt). Porsche: <a href="https://commons.wikimedia.org/wiki/File:Porsche_911_Carrera_S_(992)_-_2025-11-21.jpg" target="_blank" rel="noopener noreferrer">Bretwa, CC0</a> (freigestellt).</p></details>
     </main>
     <main id="crash-view" class="app-view crash-view" hidden>
-      <header class="crash-header"><div><span class="section-kicker">Gemeinsame Server-Runde</span><h1>Crash</h1></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="crash-balance">–</span> <small>Chips</small></strong></div></header>
+      <header class="crash-header"><div><h1>Crash</h1></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="crash-balance">–</span> <small>Chips</small></strong></div></header>
       <section class="crash-history-panel" aria-label="Vergangene Runden"><span>Letzte Runden</span><div id="crash-history" class="crash-history"></div></section>
       <aside class="crash-sidebar">
         <form id="crash-form" class="chicken-controls crash-controls">
@@ -164,9 +171,9 @@
           <div id="crash-chips" class="chip-row" aria-label="Chips für Crash auswählen"></div>
           <div class="chicken-amount"><span>Dein Einsatz</span><strong><span id="crash-bet">0</span> <small>Chips</small></strong></div>
           <button id="crash-submit" class="crash-primary" type="submit" disabled>Verbinden …</button>
-          <p id="crash-message" role="status" aria-live="polite">Einsatz vor dem Start setzen und vor dem Crash aussteigen.</p>
+          <p id="crash-message" role="status" aria-live="polite" hidden></p>
         </form>
-        <section class="crash-players-panel" aria-labelledby="crash-players-title"><div class="control-heading"><h2 id="crash-players-title">Spieler</h2><span id="crash-player-count">0</span></div><p class="crash-list-hint">Name · Einsatz · Ergebnis</p><div id="crash-players" class="crash-players"></div></section>
+        <section class="crash-players-panel" aria-labelledby="crash-players-title"><div class="control-heading"><h2 id="crash-players-title">Spieler</h2><span id="crash-player-count">0</span></div><div id="crash-players" class="crash-players"></div></section>
         <section class="crash-players-panel"><h2>Letzte Runde</h2><div id="crash-previous" class="crash-players"></div></section>
       </aside>
       <section class="crash-stage" aria-label="Gemeinsamer Crash-Verlauf">
@@ -182,28 +189,27 @@
           </svg>
           <div class="crash-readout"><span id="crash-phase">Verbindung …</span><strong id="crash-multiplier">1,00×</strong><span id="crash-countdown"></span></div>
         </div>
-        <p class="crash-stage-note">Alle spielen dieselbe Runde. Der Server bestätigt deinen Ausstieg; bei Verbindungsabbruch läuft die Runde weiter.</p>
       </section>
     </main>
     <main id="slots-view" class="app-view pinball-view" hidden>
-      <header class="pinball-header"><div><span class="section-kicker">Watt Casino</span><h1>Slots</h1></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="slots-balance">0</span> <small>Chips</small></strong></div></header>
-      <section class="pinball-board slot-machine"><span class="section-kicker">Eine Gewinnlinie</span><div class="slot-windows" aria-hidden="true"><div class="slot-reel">🍒</div><div class="slot-reel">🍋</div><div class="slot-reel">🔔</div></div><p id="slots-status" role="status">Wähle deinen Einsatz und drehe die Walzen.</p>
+      <header class="pinball-header"><div><h1>Slots</h1></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="slots-balance">0</span> <small>Chips</small></strong></div></header>
+      <section class="pinball-board slot-machine"><div class="slot-windows" aria-hidden="true"><div class="slot-reel">🍒</div><div class="slot-reel">🍋</div><div class="slot-reel">🔔</div></div><p id="slots-status" role="status" hidden></p>
       <details><summary>Gewinntabelle</summary><p>Zwei gleiche Symbole geben den Einsatz zurück. Drei gleiche zahlen je nach Symbol den angegebenen Faktor inklusive Einsatz. Alle fünf Symbole sind gleich wahrscheinlich.</p><p>🍒 5× · 🍋 8× · 🔔 12× · 💎 16× · 7️⃣ 20×</p></details></section>
       <form id="slots-form" class="pinball-controls chicken-controls"><div class="control-heading"><h2>Einsatz wählen</h2><button id="slots-clear" class="text-button" type="button">Einsatz löschen</button></div><div id="slots-chips" class="chip-row" aria-label="Chips für Slots auswählen"></div><div class="chicken-amount"><span>Aktueller Einsatz</span><strong><span id="slots-bet">0</span> <small>Chips</small></strong></div><button id="slots-spin" class="crash-primary" type="submit" disabled>Walzen drehen</button></form>
     </main>
     <main id="pinball-view" class="app-view pinball-view" hidden>
-      <header class="pinball-header"><div><span class="section-kicker">Watt Casino</span><h1>Pinball</h1></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="pinball-balance">0</span> <small>Chips</small></strong></div></header>
+      <header class="pinball-header"><div><h1>Pinball</h1></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="pinball-balance">0</span> <small>Chips</small></strong></div></header>
       <div class="pinball-board"><svg id="pinball-board" viewBox="40 0 520 570" role="img" aria-label="Kugelbahn mit zwölf Reihen und dreizehn Gewinnfeldern"></svg><div id="pinball-slots" class="pinball-slots"></div></div>
       <form id="pinball-form" class="pinball-controls chicken-controls">
         <div class="control-heading"><h2>Einsatz wählen</h2><button id="pinball-clear-bet" class="text-button" type="button">Einsatz löschen</button></div>
         <div class="chip-row" id="pinball-chips" aria-label="Chips für Pinball auswählen"></div>
         <div class="chicken-amount"><span>Aktueller Einsatz</span><strong><span id="pinball-bet">0</span> <small>Chips</small></strong></div>
-        <button type="submit" id="pinball-play">Kugel spielen</button><p id="pinball-message" role="status" aria-live="polite">12 Reihen · Auszahlung inklusive Einsatz</p>
+        <button type="submit" id="pinball-play">Kugel spielen</button><p id="pinball-message" role="status" aria-live="polite" hidden></p>
       </form>
     </main>
     <main id="chicken-view" class="app-view chicken-view" hidden>
       <section class="chicken-panel" aria-labelledby="chicken-title">
-        <header class="section-header"><div><span class="section-kicker">Watt Casino</span><h1 id="chicken-title">Chicken</h1><p>Gehe Schritt für Schritt weiter. Sichere deinen Gewinn, bevor du scheiterst.</p></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="chicken-balance">–</span> <small>Chips</small></strong></div></header>
+        <header class="section-header"><div><h1 id="chicken-title">Chicken</h1></div><div class="chicken-wallet"><span>Kontostand</span><strong><span id="chicken-balance">–</span> <small>Chips</small></strong></div></header>
         <div class="chicken-content">
           <div class="chicken-road-scroll" id="chicken-road-scroll" tabindex="0" aria-label="Straße mit neun Fahrspuren. Seitlich scrollbar; die Ansicht folgt dem Huhn.">
             <div class="chicken-road" id="chicken-road">
@@ -226,7 +232,6 @@
                 <span class="chicken-impact">✦</span>
               </div>
               <i class="traffic-car chicken-impact-car" id="chicken-impact-car" aria-hidden="true"><b></b></i>
-              <span class="chicken-road-caption">9 Spuren · Weiter nach rechts →</span>
             </div>
           </div>
           <div class="chicken-controls">
@@ -237,7 +242,7 @@
               <div class="chicken-amount chicken-amount--payout"><span>Auszahlung</span><strong><span id="chicken-payout">0</span> <small>Chips</small></strong></div>
             </div>
             <div class="chicken-actions"><button id="chicken-start" class="chicken-primary" type="button">Runde starten</button><button id="chicken-step" type="button" hidden>Nächster Schritt</button><button id="chicken-cashout" type="button" hidden>Gewinn sichern</button></div>
-            <p id="chicken-message" class="chicken-message" role="status" aria-live="polite">Die Prozentzahl zeigt die Erfolgschance pro Schritt. Mit jedem Schritt steigt das Risiko, den Einsatz zu verlieren.</p>
+            <p id="chicken-message" class="chicken-message" role="status" aria-live="polite" hidden></p>
           </div>
         </div>
       </section>
@@ -245,9 +250,9 @@
 
     <main id="poker-view" class="app-view poker-view" hidden>
       <section class="poker-panel" aria-labelledby="poker-title">
-        <header class="section-header poker-header"><div><span class="section-kicker">Nur online · Texas Hold'em</span><h1 id="poker-title">Poker</h1><p>Zwei Spieler, ein Pot und deine Entscheidung bei jeder Karte.</p></div><div class="poker-wallet">Dein Guthaben <strong id="poker-balance">–</strong> Chips</div></header>
+        <header class="section-header poker-header"><div><h1 id="poker-title">Poker</h1></div><div class="poker-wallet">Dein Guthaben <strong id="poker-balance">–</strong> Chips</div></header>
         <div class="poker-layout">
-          <aside class="poker-rankings" aria-label="Poker-Hand-Rangfolgen"><img src="assets/poker/hand-rankings.png" alt="Poker-Hand-Rangfolgen von Royal Flush bis High Card" loading="lazy"><p>Die beste Hand aus deinen zwei Karten und den Gemeinschaftskarten gewinnt.</p></aside>
+          <aside class="poker-rankings" aria-label="Poker-Hand-Rangfolgen"><img src="assets/poker/hand-rankings.png" alt="Poker-Hand-Rangfolgen von Royal Flush bis High Card" loading="lazy"></aside>
           <div class="poker-content">
             <p id="poker-message" class="poker-message" role="status" aria-live="polite">Verbinde mit dem Poker-Server …</p>
             <div id="poker-entry" class="poker-entry">
@@ -272,7 +277,6 @@
                 <form id="poker-raise-form" class="poker-raise-form"><label for="poker-raise-amount">Erhöhen um<input id="poker-raise-amount" type="number" min="5" step="0.5" value="10" inputmode="decimal" required></label><button class="game-tile-button" type="submit">Erhöhen</button><small id="poker-raise-total"></small></form>
                 <button id="poker-fold" type="button">Passen</button>
               </div>
-              <p class="poker-rules">Beide zahlen zu Beginn 10 Chips. Mit „Karte ziehen“ wartest du auf die nächste Gemeinschaftskarte. Nach einer Erhöhung muss der andere Spieler mitgehen, selbst erhöhen oder passen. Am Ende gewinnt die beste Fünf-Karten-Hand.</p>
             </div>
           </div>
         </div>
@@ -287,7 +291,6 @@
             <div class="blackjack-table">
               <div class="table-copy" aria-hidden="true">
                 <span>BLACKJACK</span>
-                <small>BLACKJACK ZAHLT 3 ZU 2 · DEALER HÄLT AB 17</small>
               </div>
               <section class="hand dealer-hand" aria-labelledby="dealer-label">
                 <div class="hand-heading">
@@ -349,7 +352,6 @@
                 <li>Blackjack zahlt 3:2. Ein Gleichstand gibt den Einsatz zurück.</li>
                 <li>Verdoppeln ist nur mit zwei Karten und ausreichendem Guthaben möglich.</li>
               </ul>
-              <p class="rules-note">Alle Karten, Ergebnisse und Auszahlungen werden auf dem Watt-Casino-Server berechnet.</p>
             </div>
           </details>
         </aside>
@@ -359,7 +361,7 @@
     <main id="leaderboard-view" class="app-view leaderboard-view" hidden>
       <section class="leaderboard-panel" aria-labelledby="leaderboard-title">
         <header class="section-header">
-          <div><span class="section-kicker">Watt Casino Rangliste</span><h1 id="leaderboard-title">Leaderboard</h1><p>Sortiert nach dem aktuellen virtuellen Kontostand.</p></div>
+          <div><h1 id="leaderboard-title">Leaderboard</h1></div>
           <div class="connection-status" id="leaderboard-status"><span aria-hidden="true"></span><strong>Aktuell</strong></div>
         </header>
         <div class="leaderboard-table-wrap">
@@ -380,11 +382,11 @@
     <main id="upgrades-view" class="app-view upgrades-view" hidden>
       <section class="upgrades-panel" aria-labelledby="upgrades-title">
         <header class="section-header upgrades-header">
-          <div><span class="section-kicker">Dauerhafte Vorteile</span><h1 id="upgrades-title">Upgrades</h1><p>Investiere Spielchips und verbessere dein Casino-Konto.</p></div>
+          <div><h1 id="upgrades-title">Upgrades</h1></div>
           <div class="upgrade-balance"><span>Verfügbar</span><strong><span id="upgrade-balance">–</span> Chips</strong></div>
         </header>
         <div class="daily-bonus" id="daily-bonus">
-          <div><span class="section-kicker">Tägliche Belohnung</span><strong id="daily-bonus-title">Tagesbonus nicht freigeschaltet</strong><small id="daily-bonus-status">Kaufe das Tagesbonus-Upgrade, um täglich Chips abzuholen.</small></div>
+          <div><strong id="daily-bonus-title">Tagesbonus nicht freigeschaltet</strong><small id="daily-bonus-status">Kaufe das Tagesbonus-Upgrade, um täglich Chips abzuholen.</small></div>
           <button id="daily-bonus-claim" type="button" disabled>Abholen</button>
         </div>
         <p class="upgrades-message" id="upgrades-message" role="status" aria-live="polite"></p>
@@ -393,13 +395,12 @@
       </section>
     </main>
 
-    <footer class="site-footer"><span>Watt Casino</span><p>Kostenloses Blackjack · Ausschließlich Spielgeld · Keine Registrierung mit Echtgeldbezug</p></footer>
   </div>
 
   <dialog class="profile-dialog" id="profile-dialog" aria-labelledby="profile-title">
     <div class="profile-shell">
       <header class="profile-header">
-        <div><span class="section-kicker">Spielerprofil</span><h2 id="profile-title">Profil</h2></div>
+        <div><h2 id="profile-title">Profil</h2></div>
         <button class="modal-close" id="profile-close" type="button" aria-label="Profil schließen">×</button>
       </header>
       <div class="profile-loading" id="profile-loading">Profil wird geladen …</div>
@@ -410,20 +411,18 @@
   <dialog class="avatar-dialog" id="avatar-dialog" aria-labelledby="avatar-dialog-title">
     <div class="avatar-editor">
       <header class="profile-header">
-        <div><span class="section-kicker">Spielerprofil</span><h2 id="avatar-dialog-title">Profilbild bearbeiten</h2></div>
+        <div><h2 id="avatar-dialog-title">Profilbild bearbeiten</h2></div>
         <button class="modal-close" id="avatar-close" type="button" aria-label="Dialog schließen">×</button>
       </header>
       <div class="avatar-picker" id="avatar-picker">
         <div class="avatar-picker-mark" aria-hidden="true">+</div>
         <strong>Bild auswählen</strong>
-        <p>PNG, JPG oder WebP · maximal 2 MB</p>
         <label class="avatar-select-button">
           Datei auswählen
           <input id="avatar-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
         </label>
       </div>
       <div class="crop-editor" id="crop-editor" hidden>
-        <p class="crop-help">Bild verschieben und mit dem Regler passend zuschneiden.</p>
         <div class="crop-stage">
           <canvas id="crop-canvas" width="512" height="512" aria-label="Vorschau des Profilbild-Zuschnitts"></canvas>
         </div>
@@ -441,11 +440,10 @@
   <dialog class="custom-bet-dialog" id="custom-bet-dialog" aria-labelledby="custom-bet-title">
     <form class="custom-bet-form" id="custom-bet-form" method="dialog">
       <header class="profile-header">
-        <div><span class="section-kicker">Eigener Chip</span><h2 id="custom-bet-title">Wunschbetrag setzen</h2></div>
+        <div><h2 id="custom-bet-title">Wunschbetrag setzen</h2></div>
         <button class="modal-close" id="custom-bet-close" type="button" aria-label="Dialog schließen">×</button>
       </header>
       <label class="custom-bet-field" for="custom-bet-input"><span>Betrag in Chips</span><input id="custom-bet-input" name="amount" type="number" min="5" step="0.5" inputmode="decimal" required></label>
-      <p class="custom-bet-hint">Der Betrag wird zum aktuellen Einsatz hinzugefügt.</p>
       <p class="avatar-error" id="custom-bet-error" role="alert"></p>
       <footer class="avatar-actions">
         <button class="avatar-cancel" id="custom-bet-cancel" type="button">Abbrechen</button>
@@ -454,12 +452,13 @@
     </form>
   </dialog>
 
-  <script src="script.js?v=poker-1" defer></script>
+  <script src="script.js?v=chips-1" defer></script>
   <script src="poker.js?v=4" defer></script>
-  <script src="slots.js?v=1" defer></script>
-  <script src="pinball.js?v=pinball-8" defer></script>
-  <script src="crash.js?v=1" defer></script>
-  <script src="loot.js?v=4" defer></script>
-  <script src="market.js?v=1" defer></script>
+  <script src="slots.js?v=chips-1" defer></script>
+  <script src="pinball.js?v=chips-1" defer></script>
+  <script src="crash.js?v=chips-1" defer></script>
+  <script src="loot.js?v=notes-1" defer></script>
+  <script src="market.js?v=notes-1" defer></script>
+  <script src="mines.js?v=chips-1" defer></script>
 </body>
 </html>

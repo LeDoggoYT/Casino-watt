@@ -1,6 +1,6 @@
 "use strict";
 ui.views.loot = document.querySelector("#loot-view");
-const lootUI = Object.fromEntries(["balance", "boxes", "stage-name", "reel", "track", "result", "open", "message", "rewards", "history", "inventory", "reward-hint", "pricing"].map(id => [id, document.querySelector(`#loot-${id}`)]));
+const lootUI = Object.fromEntries(["balance", "boxes", "stage-name", "reel", "track", "result", "open", "message", "rewards", "history", "inventory"].map(id => [id, document.querySelector(`#loot-${id}`)]));
 let lootCatalog = null;
 let lootSelected = "tech";
 let lootLoading = false;
@@ -51,7 +51,7 @@ function renderLootInventory(inventory = []) {
     const item = lootCatalog.items[index];
     if (!item) continue;
     const card = styleLootItem(lootNode("div", `loot-inventory-card loot-rarity-${index}`), item);
-    card.append(lootImage(item), lootNode("strong", "", item.name), lootPriceLink(item), lootNode("span", "loot-hint", `${entry.quantity}× gesammelt · Virtuell`));
+    card.append(lootImage(item), lootNode("strong", "", item.name), lootPriceLink(item), lootNode("span", "loot-hint", `${entry.quantity}× gesammelt`));
     lootUI.inventory.append(card);
   }
 }
@@ -98,8 +98,6 @@ function renderLootSelection() {
   renderLootReel(box);
   lootUI.result.textContent = "Deine nächste Überraschung wartet.";
   lootUI.rewards.replaceChildren();
-  lootUI["reward-hint"].textContent = "Immer ein virtueller Gegenstand, keine Chips als Gewinn. Schweizer Händler- bzw. Fahrzeug-ab-Preise als Referenz; Bilder illustrieren das Modell.";
-  lootUI.pricing.textContent = `Ø Referenzwert: ${lootMoney(box.expectedValue)} · Pack: ${formatChips(box.price)} Chips. Wert × Chance, ohne Aufschlag; auf 0,5 Chips abgerundet. Recherchiert am ${lootCatalog.checkedAt}.`;
   lootRewards(box).forEach((reward, index) => {
     const row = styleLootItem(lootNode("div", `loot-reward loot-rarity-${index}`), reward);
     const info = lootNode("div", "loot-reward-info");
@@ -117,7 +115,7 @@ function renderLootHistory(history) {
     const net = item.payout - item.price;
     const card = lootNode("div", `loot-history-item loot-rarity-${item.reward_index}`);
     const product = lootCatalog.items?.find(product => product.key === item.item_key);
-    if (product) { styleLootItem(card, product); card.append(lootImage(product), lootNode("strong", "", product.name), lootNode("span", "loot-hint", "Gewonnen · Virtueller Gegenstand")); }
+    if (product) { styleLootItem(card, product); card.append(lootImage(product), lootNode("strong", "", product.name)); }
     else card.append(lootNode("span", "loot-hint", "Frühere Chips-Box · Archiv"), lootNode("strong", "", `${formatChips(item.payout)} Chips`), lootNode("span", net >= 0 ? "loot-profit" : "loot-loss", `${net >= 0 ? "+" : ""}${formatChips(net)} Chips netto`));
     lootUI.history.append(card);
   }
@@ -144,13 +142,14 @@ async function loadLoot() {
     for (const box of data.boxes) {
       const button = lootNode("button", "loot-box-choice"); button.type = "button"; button.dataset.box = box.key;
       const icon = lootImage({name: box.name, image: `assets/loot/preview-${box.key}.png`}, "loot-box-photo"); icon.setAttribute("aria-hidden", "true");
-      button.append(icon, lootNode("strong", "", box.name), lootNode("span", "loot-box-price", `${formatChips(box.price)} Chips`), lootNode("span", "loot-hint", box.description));
+      button.append(icon, lootNode("strong", "", box.name), lootNode("span", "loot-box-price", `${formatChips(box.price)} Chips`));
       button.addEventListener("click", () => { if (lootOpening || state.busy) return; lootSelected = box.key; renderLootSelection(); });
       lootUI.boxes.append(button);
     }
     renderLootSelection(); renderLootHistory(data.history); renderLootInventory(data.inventory);
-    lootUI.message.textContent = "Jedes Pack enthält einen Gegenstand für dein virtuelles Inventar.";
-  } catch (error) { lootUI.message.textContent = error.message; }
+    lootUI.message.textContent = "";
+    lootUI.message.hidden = true;
+  } catch (error) { lootUI.message.textContent = error.message; lootUI.message.hidden = false; }
   finally { lootLoading = false; updateLootControls(); }
 }
 lootUI.open.addEventListener("click", async () => {
@@ -160,7 +159,8 @@ lootUI.open.addEventListener("click", async () => {
   lootOpening = true; state.busy = true; updateLootControls();
   lootUI.reel.classList.remove("has-winner");
   lootUI.result.textContent = "Die Box wird vorbereitet …";
-  lootUI.message.textContent = "Deine Box wird geöffnet.";
+  lootUI.message.textContent = "";
+  lootUI.message.hidden = true;
   try {
     const data = await api("/api/loot/open", {method: "POST", signal: AbortSignal.timeout(8000), body: JSON.stringify({box: box.key, actionId: actionId()})});
     if (state.token !== token) return;
@@ -170,13 +170,13 @@ lootUI.open.addEventListener("click", async () => {
     await spinLootReel(box, data.rewardIndex);
     if (state.token !== token) return;
     lootUI.result.replaceChildren(lootImage(data.item, "loot-result-image"), lootNode("strong", "", data.item.name), lootPriceLink(data.item), lootNode("span", "loot-result-label", "Neu in deinem Inventar"));
-    lootUI.message.textContent = "Virtueller Sammelgegenstand gespeichert. Kein physischer Versand.";
     renderLootInventory(data.inventory);
     renderLootHistory(data.history);
   } catch (error) {
     lootUI.reel.classList.remove("is-spinning");
     lootUI.result.textContent = "Öffnung nicht bestätigt.";
     lootUI.message.textContent = error.message;
+    lootUI.message.hidden = false;
     // Reconcile a possibly committed opening after a network timeout.
     try {
       const data = await api("/api/loot/current", {signal: AbortSignal.timeout(8000)});
