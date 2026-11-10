@@ -153,7 +153,8 @@ CREATE TABLE IF NOT EXISTS users (
  id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, username_normalized TEXT NOT NULL UNIQUE,
  password_hash TEXT NOT NULL, created_at TEXT NOT NULL, last_activity_at TEXT NOT NULL,
  is_suspended INTEGER NOT NULL DEFAULT 0 CHECK (is_suspended IN (0,1)), suspension_reason TEXT, suspended_at TEXT,
- avatar_filename TEXT);
+ avatar_filename TEXT, theme TEXT NOT NULL DEFAULT 'forest', anonymous_until TEXT,
+ anonymous_hours INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS sessions (
  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, last_used_at TEXT NOT NULL, ip_address TEXT);
@@ -205,7 +206,7 @@ CREATE TABLE IF NOT EXISTS crash_bets (
 CREATE INDEX IF NOT EXISTS crash_bets_pending ON crash_bets(user_id,payout);
 CREATE TABLE IF NOT EXISTS big_wins (
  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
- game TEXT NOT NULL, amount REAL NOT NULL, created_at TEXT NOT NULL);
+ game TEXT NOT NULL, amount REAL NOT NULL, created_at TEXT NOT NULL, anonymous INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS completed_rounds (
  id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, bet REAL NOT NULL,
  outcome TEXT NOT NULL CHECK (outcome IN ('win','loss','push','blackjack')), player_cards_json TEXT NOT NULL,
@@ -266,10 +267,15 @@ def initialise_database(app: Flask) -> None:
             ("suspension_reason", "TEXT"),
             ("suspended_at", "TEXT"),
             ("avatar_filename", "TEXT"),
+            ("theme", "TEXT NOT NULL DEFAULT 'forest'"),
+            ("anonymous_until", "TEXT"),
+            ("anonymous_hours", "INTEGER NOT NULL DEFAULT 0"),
         ]:
             columns = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
             if name not in columns:
                 db.execute(f"ALTER TABLE users ADD COLUMN {name} {definition}")
+        if "anonymous" not in {row["name"] for row in db.execute("PRAGMA table_info(big_wins)")}:
+            db.execute("ALTER TABLE big_wins ADD COLUMN anonymous INTEGER NOT NULL DEFAULT 0")
         active_round_columns = {row["name"] for row in db.execute("PRAGMA table_info(active_rounds)")}
         if "luck_used" not in active_round_columns:
             db.execute("ALTER TABLE active_rounds ADD COLUMN luck_used INTEGER NOT NULL DEFAULT 0 CHECK (luck_used IN (0,1))")
@@ -584,7 +590,9 @@ def register_action(user_id, action_id, action_type):
 
 def record_big_win(db, user_id, game, amount, bet):
     if amount > 10000 or amount + bet > 5 * bet:
-        db.execute("INSERT INTO big_wins (user_id,game,amount,created_at) VALUES (?,?,?,?)", (user_id, game, amount, utc_now()))
+        now = utc_now()
+        anonymous = db.execute("SELECT anonymous_until>? FROM users WHERE id=?", (now, user_id)).fetchone()[0]
+        db.execute("INSERT INTO big_wins (user_id,game,amount,created_at,anonymous) VALUES (?,?,?,?,?)", (user_id, game, amount, now, int(bool(anonymous))))
         db.execute("DELETE FROM big_wins WHERE id < (SELECT MAX(id) - 1000 FROM big_wins)")
 
 
@@ -823,11 +831,83 @@ def make_app():
     @app.get("/api/auth/me")
     @auth_required
     def me():
-        row=get_db().execute("SELECT u.username,u.created_at,u.last_activity_at,u.avatar_filename,b.amount AS balance,s.rounds_played,s.wins,s.losses,s.pushes,s.blackjacks FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id WHERE u.id=?",(g.auth["user_id"],)).fetchone()
+        row=get_db().execute("SELECT u.username,u.created_at,u.last_activity_at,u.avatar_filename,u.theme,b.amount AS balance,s.rounds_played,s.wins,s.losses,s.pushes,s.blackjacks FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id WHERE u.id=?",(g.auth["user_id"],)).fetchone()
         user=dict(row); user["avatarUrl"]=avatar_url(user.pop("avatar_filename"))
         active_round = load_round(g.auth["user_id"])
         game = {"round": public_round(active_round, row["balance"]) if active_round else None, "balance": row["balance"]}
         return ok({"user":user, "game":game, "adminAccess":admin_access(g.auth["user_id"], g.auth["username"])})
+
+    @app.get("/api/settings")
+    @auth_required
+    def settings():
+        row = get_db().execute("SELECT username,theme,anonymous_until,anonymous_hours FROM users WHERE id=?", (g.auth["user_id"],)).fetchone()
+        active = bool(row["anonymous_until"] and row["anonymous_until"] > utc_now())
+        return ok({"username":row["username"],"theme":row["theme"],"anonymousUntil":row["anonymous_until"] if active else None,"anonymousHours":row["anonymous_hours"] if active else 0})
+
+    @app.patch("/api/settings/privacy")
+    @auth_required
+    def update_privacy():
+        hours = body().get("hours")
+        if type(hours) is not int or hours not in (0, 1, 4, 9):
+            raise ApiError(400, "Wähle Aus, 1, 4 oder 9 Stunden.")
+        until = (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat(timespec="milliseconds").replace("+00:00", "Z") if hours else None
+        get_db().execute("UPDATE users SET anonymous_until=?,anonymous_hours=? WHERE id=?", (until,hours,g.auth["user_id"]))
+        return ok({"anonymousUntil":until,"anonymousHours":hours}, "Anonymität aktualisiert.")
+
+    @app.patch("/api/settings/theme")
+    @auth_required
+    def update_theme():
+        theme = body().get("theme")
+        if theme not in ("forest", "ocean", "violet", "ember"):
+            raise ApiError(400, "Ungültiges Farbthema.")
+        get_db().execute("UPDATE users SET theme=? WHERE id=?", (theme, g.auth["user_id"]))
+        return ok({"theme":theme}, "Farbthema gespeichert.")
+
+    @app.patch("/api/settings/username")
+    @auth_required
+    def update_username():
+        payload = body()
+        username = payload.get("username", "")
+        current_password = payload.get("currentPassword")
+        if not isinstance(username, str) or not USERNAME_RE.fullmatch(username):
+            raise ApiError(400, "Der Benutzername muss 3–20 Zeichen lang sein und darf Buchstaben, Zahlen, _ und - enthalten.")
+        if not isinstance(current_password, str) or not 1 <= len(current_password) <= 128:
+            raise ApiError(400, "Gib dein aktuelles Passwort ein.")
+        enforce_rate_limit(f"settings-name-{g.auth['user_id']}", 10, 600)
+        try:
+            with transaction() as db:
+                user = db.execute("SELECT username,password_hash FROM users WHERE id=?", (g.auth["user_id"],)).fetchone()
+                if not bcrypt.checkpw(current_password.encode(), user["password_hash"].encode()):
+                    raise ApiError(403, "Das aktuelle Passwort ist falsch.")
+                if normalise(user["username"]) == ADMIN_OWNER_USERNAME and normalise(username) != ADMIN_OWNER_USERNAME:
+                    raise ApiError(403, "Der Administratorname kann nicht geändert werden.")
+                if normalise(user["username"]) != ADMIN_OWNER_USERNAME and normalise(username) == ADMIN_OWNER_USERNAME:
+                    raise ApiError(403, "Dieser Benutzername ist nicht verfügbar.")
+                db.execute("UPDATE users SET username=?,username_normalized=? WHERE id=?", (username,normalise(username),g.auth["user_id"]))
+        except sqlite3.IntegrityError:
+            raise ApiError(409, "Dieser Benutzername ist bereits vergeben.")
+        return ok({"username":username}, "Benutzername aktualisiert.")
+
+    @app.patch("/api/settings/password")
+    @auth_required
+    def update_password():
+        payload = body()
+        current_password, new_password = payload.get("currentPassword"), payload.get("newPassword")
+        if not isinstance(current_password, str) or not 1 <= len(current_password) <= 128:
+            raise ApiError(400, "Gib dein aktuelles Passwort ein.")
+        if not isinstance(new_password, str) or not 8 <= len(new_password) <= 128:
+            raise ApiError(400, "Das neue Passwort muss 8–128 Zeichen lang sein.")
+        if current_password == new_password:
+            raise ApiError(400, "Das neue Passwort muss sich vom bisherigen unterscheiden.")
+        enforce_rate_limit(f"settings-password-{g.auth['user_id']}", 10, 600)
+        with transaction() as db:
+            user = db.execute("SELECT password_hash FROM users WHERE id=?", (g.auth["user_id"],)).fetchone()
+            if not bcrypt.checkpw(current_password.encode(), user["password_hash"].encode()):
+                raise ApiError(403, "Das aktuelle Passwort ist falsch.")
+            password_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt(rounds=BCRYPT_ROUNDS)).decode()
+            db.execute("UPDATE users SET password_hash=? WHERE id=?", (password_hash,g.auth["user_id"]))
+            db.execute("DELETE FROM sessions WHERE user_id=? AND id<>?", (g.auth["user_id"],g.auth["session_id"]))
+        return ok(message="Passwort geändert. Andere Sitzungen wurden abgemeldet.")
 
     @app.post("/api/profile/avatar")
     @auth_required
@@ -961,7 +1041,7 @@ def make_app():
         if not raw.isdigit() or len(raw) > 18:
             raise ApiError(400, "Ungültiger Cursor.")
         cutoff = (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-        rows = db.execute("""SELECT w.id,u.username,w.game,w.amount FROM big_wins w
+        rows = db.execute("""SELECT w.id,CASE WHEN w.anonymous=1 THEN 'Anonym' ELSE u.username END AS username,w.game,w.amount FROM big_wins w
                              JOIN users u ON u.id=w.user_id WHERE w.id>? AND w.created_at>=?
                              ORDER BY w.id DESC LIMIT 3""", (int(raw), cutoff)).fetchall()
         return ok({"wins": [dict(row) for row in reversed(rows)], "cursor": latest})

@@ -12,7 +12,7 @@ for suffix in ("", "-shm", "-wal"):
 os.environ["DATABASE_PATH"] = str(TEMP_DB)
 os.environ["NODE_ENV"] = "development"
 
-from app import app, get_db, RATE_BUCKETS, outcome as determine_outcome, hand_value, blackjack as is_blackjack  # noqa: E402
+from app import app, get_db, RATE_BUCKETS, record_big_win, outcome as determine_outcome, hand_value, blackjack as is_blackjack  # noqa: E402
 
 
 class WattCasinoApiTests(unittest.TestCase):
@@ -493,6 +493,43 @@ class WattCasinoApiTests(unittest.TestCase):
                 self.assertEqual(data["payout"], 0)
             self.assertEqual(data["slotWeights"], weights)
             self.assertEqual(sum(data["path"]), expected_slot)
+
+    def test_settings_privacy_keeps_big_win_anonymous_after_switching_off(self):
+        token = self.request("POST", "/api/auth/register", {"username": "PrivateWinner", "password": "SicheresTestpasswort9"}).get_json()["data"]["token"]
+        self.assertEqual(self.request("PATCH", "/api/settings/privacy", {"hours": 2}, token).status_code, 400)
+        cursor = self.request("GET", "/api/big-wins").get_json()["data"]["cursor"]
+        enabled = self.request("PATCH", "/api/settings/privacy", {"hours": 4}, token).get_json()["data"]
+        self.assertEqual(enabled["anonymousHours"], 4)
+        self.assertEqual(self.request("GET", "/api/settings", token=token).get_json()["data"]["anonymousHours"], 4)
+        with app.app_context():
+            db = get_db()
+            user_id = db.execute("SELECT id FROM users WHERE username='PrivateWinner'").fetchone()["id"]
+            record_big_win(db, user_id, "SettingsTest", 12000, 100)
+        self.request("PATCH", "/api/settings/privacy", {"hours": 0}, token)
+        with app.app_context():
+            record_big_win(get_db(), user_id, "SettingsPublic", 12000, 100)
+        wins = self.request("GET", f"/api/big-wins?after={cursor}").get_json()["data"]["wins"]
+        self.assertEqual(next(win for win in wins if win["game"] == "SettingsTest")["username"], "Anonym")
+        self.assertEqual(next(win for win in wins if win["game"] == "SettingsPublic")["username"], "PrivateWinner")
+
+    def test_settings_theme_username_and_password_require_valid_credentials(self):
+        password = "SicheresTestpasswort9"
+        token = self.request("POST", "/api/auth/register", {"username": "SettingsPlayer", "password": password}).get_json()["data"]["token"]
+        other_session = self.request("POST", "/api/auth/login", {"username": "SettingsPlayer", "password": password}).get_json()["data"]["token"]
+        self.assertEqual(self.request("PATCH", "/api/settings/theme", {"theme": "unknown"}, token).status_code, 400)
+        self.assertEqual(self.request("PATCH", "/api/settings/theme", {"theme": "ocean"}, token).get_json()["data"]["theme"], "ocean")
+        self.assertEqual(self.request("GET", "/api/auth/me", token=token).get_json()["data"]["user"]["theme"], "ocean")
+        self.assertEqual(self.request("PATCH", "/api/settings/username", {"username": "RenamedPlayer", "currentPassword": "wrong"}, token).status_code, 403)
+        self.request("POST", "/api/auth/register", {"username": "TakenSettings", "password": password})
+        self.assertEqual(self.request("PATCH", "/api/settings/username", {"username": "TakenSettings", "currentPassword": password}, token).status_code, 409)
+        self.assertEqual(self.request("PATCH", "/api/settings/username", {"username": "Tiago", "currentPassword": password}, token).status_code, 403)
+        renamed = self.request("PATCH", "/api/settings/username", {"username": "RenamedPlayer", "currentPassword": password}, token)
+        self.assertEqual(renamed.get_json()["data"]["username"], "RenamedPlayer")
+        self.assertEqual(self.request("PATCH", "/api/settings/password", {"currentPassword": "wrong", "newPassword": "NewSecurePassword9"}, token).status_code, 403)
+        self.assertEqual(self.request("PATCH", "/api/settings/password", {"currentPassword": password, "newPassword": "NewSecurePassword9"}, token).status_code, 200)
+        self.assertEqual(self.request("GET", "/api/auth/me", token=other_session).status_code, 401)
+        self.assertEqual(self.request("POST", "/api/auth/login", {"username": "RenamedPlayer", "password": password}).status_code, 401)
+        self.assertEqual(self.request("POST", "/api/auth/login", {"username": "RenamedPlayer", "password": "NewSecurePassword9"}).status_code, 200)
 
     def test_owner_can_delete_player_and_cascade_account_data(self):
         owner = self.admin_token()
