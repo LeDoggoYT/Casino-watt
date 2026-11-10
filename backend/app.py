@@ -1355,10 +1355,10 @@ def make_app():
     @auth_required
     def profile(username):
         if not USERNAME_RE.fullmatch(username): raise ApiError(400,"Ungültiger Benutzername.")
-        row=get_db().execute("""SELECT u.id,u.username,u.created_at,u.last_activity_at,u.avatar_filename,b.amount AS balance,s.*, (SELECT 1+COUNT(*) FROM balances other JOIN users other_user ON other_user.id=other.user_id WHERE other.amount>b.amount OR (other.amount=b.amount AND other_user.username_normalized<u.username_normalized)) AS rank FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id WHERE u.username_normalized=?""",(normalise(username),)).fetchone()
+        row=get_db().execute("""SELECT u.id,u.username,u.created_at,u.avatar_filename,b.amount AS balance,s.*, (SELECT 1+COUNT(*) FROM balances other JOIN users other_user ON other_user.id=other.user_id WHERE other.amount>b.amount OR (other.amount=b.amount AND other_user.username_normalized<u.username_normalized)) AS rank FROM users u JOIN balances b ON b.user_id=u.id JOIN player_stats s ON s.user_id=u.id WHERE u.username_normalized=?""",(normalise(username),)).fetchone()
         if not row: raise ApiError(404,"Spieler nicht gefunden.")
         win,loss=rates(row); streak={"type":"win","count":row["current_streak"]} if row["current_streak"]>0 else ({"type":"loss","count":abs(row["current_streak"])} if row["current_streak"]<0 else {"type":"none","count":0})
-        keys={"username":"username","balance":"balance","rank":"rank","roundsPlayed":"rounds_played","wins":"wins","losses":"losses","pushes":"pushes","blackjacks":"blackjacks","highestBalance":"highest_balance","biggestWin":"biggest_win","totalWon":"total_won","totalLost":"total_lost","bestWinStreak":"best_win_streak","totalPlaySeconds":"total_play_seconds","registeredAt":"created_at","lastActivityAt":"last_activity_at"}
+        keys={"username":"username","balance":"balance","rank":"rank","roundsPlayed":"rounds_played","wins":"wins","losses":"losses","pushes":"pushes","blackjacks":"blackjacks","highestBalance":"highest_balance","biggestWin":"biggest_win","totalWon":"total_won","totalLost":"total_lost","bestWinStreak":"best_win_streak","totalPlaySeconds":"total_play_seconds","registeredAt":"created_at"}
         player={out:row[key] for out,key in keys.items()}; player.update(avatarUrl=avatar_url(row["avatar_filename"]),winRate=win,lossRate=loss,currentStreak=streak,isCurrentUser=row["id"]==g.auth["user_id"])
         return ok({"player":player})
 
