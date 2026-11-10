@@ -531,6 +531,27 @@ class WattCasinoApiTests(unittest.TestCase):
         self.assertEqual(self.request("POST", "/api/auth/login", {"username": "RenamedPlayer", "password": password}).status_code, 401)
         self.assertEqual(self.request("POST", "/api/auth/login", {"username": "RenamedPlayer", "password": "NewSecurePassword9"}).status_code, 200)
 
+    def test_support_tickets_replies_and_unread_badges_are_private(self):
+        password = "SicheresTestpasswort9"
+        player = self.request("POST", "/api/auth/register", {"username": "SupportWriter", "password": password}).get_json()["data"]["token"]
+        other = self.request("POST", "/api/auth/register", {"username": "SupportOther", "password": password}).get_json()["data"]["token"]
+        owner = self.admin_token()
+        self.assertEqual(self.request("POST", "/api/support/tickets", {"title": "Zu kurz", "message": "x"}, player).status_code, 400)
+        created = self.request("POST", "/api/support/tickets", {"title": "Idee für ein Spiel", "message": "Ein neues Kartenspiel wäre toll."}, player)
+        self.assertEqual(created.status_code, 201)
+        ticket_id = created.get_json()["data"]["id"]
+        self.assertEqual(self.request("GET", "/api/support/tickets", token=other).get_json()["data"]["tickets"], [])
+        self.assertEqual(self.request("GET", "/api/admin/support", token=other).status_code, 403)
+        self.assertEqual(self.request("GET", "/api/admin/support/unread", token=owner).get_json()["data"]["count"], 1)
+        self.assertEqual(self.request("GET", "/api/admin/support", token=owner).get_json()["data"]["tickets"][0]["id"], ticket_id)
+        self.assertEqual(self.request("POST", f"/api/admin/support/{ticket_id}/reply", {"reply": "Danke für die Idee!"}, owner).status_code, 200)
+        self.assertEqual(self.request("GET", "/api/admin/support/unread", token=owner).get_json()["data"]["count"], 0)
+        self.assertEqual(self.request("GET", "/api/support/unread", token=player).get_json()["data"]["count"], 1)
+        tickets = self.request("GET", "/api/support/tickets", token=player).get_json()["data"]["tickets"]
+        self.assertEqual(tickets[0]["reply"], "Danke für die Idee!")
+        self.assertEqual(self.request("GET", "/api/support/unread", token=player).get_json()["data"]["count"], 0)
+        self.assertEqual(self.request("POST", f"/api/admin/support/{ticket_id}/reply", {"reply": "Noch einmal"}, owner).status_code, 409)
+
     def test_owner_can_delete_player_and_cascade_account_data(self):
         owner = self.admin_token()
         credentials = {"username": "DeleteTarget", "password": "SicheresTestpasswort9"}

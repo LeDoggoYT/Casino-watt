@@ -229,6 +229,12 @@ CREATE TABLE IF NOT EXISTS moderators (
 CREATE TABLE IF NOT EXISTS admin_audit_log (
  id INTEGER PRIMARY KEY AUTOINCREMENT, target_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  action TEXT NOT NULL, previous_value TEXT, new_value TEXT, reason TEXT, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS support_tickets (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ title TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL,
+ reply TEXT, replied_at TEXT, user_read_at TEXT);
+CREATE INDEX IF NOT EXISTS idx_support_user ON support_tickets(user_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_support_open ON support_tickets(replied_at, id DESC);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username_normalized);
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
@@ -908,6 +914,62 @@ def make_app():
             db.execute("UPDATE users SET password_hash=? WHERE id=?", (password_hash,g.auth["user_id"]))
             db.execute("DELETE FROM sessions WHERE user_id=? AND id<>?", (g.auth["user_id"],g.auth["session_id"]))
         return ok(message="Passwort geändert. Andere Sitzungen wurden abgemeldet.")
+
+    @app.get("/api/support/unread")
+    @auth_required
+    def support_unread():
+        count = get_db().execute("SELECT COUNT(*) FROM support_tickets WHERE user_id=? AND reply IS NOT NULL AND user_read_at IS NULL", (g.auth["user_id"],)).fetchone()[0]
+        return ok({"count":count})
+
+    @app.get("/api/support/tickets")
+    @auth_required
+    def support_tickets():
+        db = get_db()
+        rows = db.execute("SELECT id,title,body,created_at,reply,replied_at FROM support_tickets WHERE user_id=? ORDER BY id DESC LIMIT 100", (g.auth["user_id"],)).fetchall()
+        db.execute("""UPDATE support_tickets SET user_read_at=? WHERE user_id=? AND reply IS NOT NULL AND user_read_at IS NULL
+                      AND id IN (SELECT id FROM support_tickets WHERE user_id=? ORDER BY id DESC LIMIT 100)""", (utc_now(),g.auth["user_id"],g.auth["user_id"]))
+        return ok({"tickets":[dict(row) for row in rows]})
+
+    @app.post("/api/support/tickets")
+    @auth_required
+    def create_support_ticket():
+        payload = body()
+        title, message = payload.get("title"), payload.get("message")
+        if not isinstance(title,str) or not 3 <= len(title.strip()) <= 120:
+            raise ApiError(400, "Der Titel muss 3–120 Zeichen lang sein.")
+        if not isinstance(message,str) or not 10 <= len(message.strip()) <= 5000:
+            raise ApiError(400, "Der Text muss 10–5000 Zeichen lang sein.")
+        enforce_rate_limit(f"support-create-{g.auth['user_id']}", 5, 3600)
+        cursor = get_db().execute("INSERT INTO support_tickets (user_id,title,body,created_at) VALUES (?,?,?,?)", (g.auth["user_id"],title.strip(),message.strip(),utc_now()))
+        return ok({"id":cursor.lastrowid}, "Ticket gesendet.", 201)
+
+    @app.get("/api/admin/support")
+    @admin_required(owner=True)
+    def admin_support_tickets():
+        db = get_db()
+        open_count = db.execute("SELECT COUNT(*) FROM support_tickets WHERE reply IS NULL").fetchone()[0]
+        rows = db.execute("""SELECT t.id,u.username,t.title,t.body,t.created_at,t.reply,t.replied_at
+                             FROM support_tickets t JOIN users u ON u.id=t.user_id
+                             ORDER BY (t.reply IS NULL) DESC,t.id DESC LIMIT 100""").fetchall()
+        return ok({"openCount":open_count,"tickets":[dict(row) for row in rows]})
+
+    @app.get("/api/admin/support/unread")
+    @admin_required(owner=True)
+    def admin_support_unread():
+        count = get_db().execute("SELECT COUNT(*) FROM support_tickets WHERE reply IS NULL").fetchone()[0]
+        return ok({"count":count})
+
+    @app.post("/api/admin/support/<int:ticket_id>/reply")
+    @admin_required(owner=True)
+    def reply_support_ticket(ticket_id):
+        reply = body().get("reply")
+        if not isinstance(reply,str) or not 1 <= len(reply.strip()) <= 5000:
+            raise ApiError(400, "Die Antwort muss 1–5000 Zeichen lang sein.")
+        with transaction() as db:
+            changed = db.execute("UPDATE support_tickets SET reply=?,replied_at=?,user_read_at=NULL WHERE id=? AND reply IS NULL", (reply.strip(),utc_now(),ticket_id))
+            if not changed.rowcount:
+                raise ApiError(409, "Das Ticket wurde bereits beantwortet oder existiert nicht.")
+        return ok(message="Antwort gesendet.")
 
     @app.post("/api/profile/avatar")
     @auth_required
