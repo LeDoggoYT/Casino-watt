@@ -267,6 +267,18 @@ button:disabled { opacity: .35; cursor: not-allowed; }
 .admin-logout { display: inline-flex; align-items: center; text-decoration: none; }
 .moderator-panel { margin-top: 24px; }
 .moderator-panel h2 { margin: 4px 0 0; font-family: var(--font-ui); font-size: 27px; }
+.admin-support-panel h2 { margin: 4px 0 0; font-family: var(--font-ui); font-size: 27px; }
+.admin-ticket-list { display: grid; }
+.admin-ticket { padding: 20px 30px; border-top: 1px solid var(--line-soft); }
+.admin-ticket-heading { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: baseline; }
+.admin-ticket-heading h3 { margin: 0; font-size: 17px; overflow-wrap: anywhere; }
+.admin-ticket-heading span { color: var(--muted); font-size: 12px; }
+.admin-ticket > p, .admin-ticket-reply p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+.admin-ticket-reply { padding: 12px; border-left: 3px solid var(--gold); background: var(--panel-deep); }
+.admin-ticket-form { display: grid; gap: 10px; max-width: 700px; }
+.admin-ticket-form label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
+.admin-ticket-form textarea { min-height: 100px; padding: 10px; resize: vertical; border: 1px solid var(--line); border-radius: 9px; color: var(--cream); background: var(--panel-deep); }
+.admin-ticket-form button { justify-self: start; }
 .moderator-form { display: grid; gap: 12px; padding: 24px 31px; max-width: 600px; font-family: var(--font-ui); }
 .moderator-form > label { color: var(--muted); font-size: 13px; }
 .moderator-form > input { min-height: 44px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--cream); background: var(--admin-field); font: inherit; }

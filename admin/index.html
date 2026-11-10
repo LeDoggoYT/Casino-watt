@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>Watt Casino – Verwaltung</title>
-  <link rel="stylesheet" href="../style.css">
-  <link rel="stylesheet" href="admin.css">
+  <link rel="stylesheet" href="../style.css?v=support-1">
+  <link rel="stylesheet" href="admin.css?v=support-1">
 </head>
 <body class="admin-page">
   <main class="admin-login" id="admin-login">
@@ -55,6 +55,12 @@
           <button id="admin-next" type="button">Weiter</button>
         </footer>
       </section>
+      <section class="admin-panel admin-support-panel" id="admin-support-panel" hidden aria-labelledby="admin-support-title">
+        <header class="admin-panel-header"><div><h2 id="admin-support-title">Support <span class="notice-badge" id="admin-ticket-badge" hidden></span></h2><p>Probleme und Ideen der Spieler</p></div><button class="admin-action" id="admin-support-refresh" type="button">Aktualisieren</button></header>
+        <p class="admin-notice" id="admin-support-notice" role="status"></p>
+        <div id="admin-ticket-list" class="admin-ticket-list"></div>
+        <p class="admin-empty" id="admin-ticket-empty" hidden>Keine Support-Tickets vorhanden.</p>
+      </section>
       <section class="admin-panel moderator-panel" id="moderator-panel" hidden aria-labelledby="moderators-title">
         <header class="admin-panel-header"><div><h2 id="moderators-title">Moderatoren</h2></div></header>
         <form id="moderator-form" class="moderator-form">
@@ -72,6 +78,7 @@
     </main>
   </div>
 
-  <script src="admin.js" defer></script>
+  <script src="admin.js?v=support-1" defer></script>
+  <script src="support.js?v=1" defer></script>
 </body>
 </html>

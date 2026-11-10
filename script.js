@@ -55,7 +55,7 @@ const ui = {
   cropZoom: document.querySelector("#crop-zoom"),
   logout: document.querySelector("#logout"),
   navLinks: [...document.querySelectorAll(".nav-link")],
-  views: { home: document.querySelector("#home-view"), game: document.querySelector("#game-view"), poker: document.querySelector("#poker-view"), chicken: document.querySelector("#chicken-view"), mines: document.querySelector("#mines-view"), leaderboard: document.querySelector("#leaderboard-view"), upgrades: document.querySelector("#upgrades-view") },
+  views: { home: document.querySelector("#home-view"), game: document.querySelector("#game-view"), poker: document.querySelector("#poker-view"), chicken: document.querySelector("#chicken-view"), mines: document.querySelector("#mines-view"), leaderboard: document.querySelector("#leaderboard-view"), upgrades: document.querySelector("#upgrades-view"), settings: document.querySelector("#settings-view"), support: document.querySelector("#support-view") },
   chickenBalance: document.querySelector("#chicken-balance"),
   chickenBet: document.querySelector("#chicken-bet"),
   chickenChips: document.querySelector("#chicken-chips"),
@@ -116,6 +116,7 @@ ui.chips.filter(chip => /^\d+$/.test(chip.dataset.bet)).forEach((chip, index) =>
 const state = {
   token: localStorage.getItem(TOKEN_KEY),
   user: null,
+  adminOwner: false,
   balance: 0,
   selectedBet: 0,
   round: null,
@@ -172,7 +173,10 @@ function formatPercent(value) {
 }
 
 function formatDate(value) {
-  return new Intl.DateTimeFormat("de-CH", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  if (!value) return "–";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "–";
+  return new Intl.DateTimeFormat("de-CH", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
 function formatDuration(seconds) {
@@ -237,6 +241,8 @@ function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   state.token = null;
   state.user = null;
+  state.adminOwner = false;
+  stopSupportPolling();
   state.round = null;
   state.chickenRound = null;
   state.chickenResult = null;
@@ -255,6 +261,7 @@ function clearSession() {
   ui.suspendedScreen.hidden = true;
   ui.authScreen.hidden = false;
   ui.headerAvatar.replaceChildren();
+  document.documentElement.dataset.theme = "forest";
   switchAuthTab("login");
 }
 
@@ -274,6 +281,8 @@ async function establishSession(token) {
   const me = await api("/api/auth/me");
   const current = me.game;
   state.user = me.user;
+  state.adminOwner = me.adminAccess?.role === "owner";
+  document.documentElement.dataset.theme = state.user.theme || "forest";
   state.balance = current.balance;
   state.round = current.round;
   state.selectedBet = current.round?.bet ?? 0;
@@ -290,6 +299,7 @@ async function establishSession(token) {
   state.sessionRetryTimer = null;
   renderGame(false);
   startHeartbeat();
+  startSupportPolling();
 }
 
 function resumeCachedSession() {
@@ -670,6 +680,8 @@ function setView(view) {
   if (view === "leaderboard") { state.leaderboardPage = 1; loadLeaderboard(); startLeaderboardPolling(); }
   else stopLeaderboardPolling();
   if (view === "upgrades") loadUpgrades();
+  if (view === "settings") loadSettings();
+  if (view === "support") loadSupportTickets();
   if (view === "chicken") loadChicken();
   if (view === "slots") updateSlotsControls();
   if (view === "pinball") { updatePinballControls(); loadPinballConfig(); }
@@ -977,7 +989,7 @@ async function openProfile(username) {
         ${profileStat("Virtueller Gewinn", `${formatChips(player.totalWon)} Chips`)}${profileStat("Virtueller Verlust", `${formatChips(player.totalLost)} Chips`)}${profileStat("Aktuelle Serie", streak)}
         ${profileStat("Beste Gewinnserie", player.bestWinStreak)}${profileStat("Spielzeit", formatDuration(player.totalPlaySeconds))}
       </div>
-      <div class="profile-meta"><span>Registriert: <strong>${formatDate(player.registeredAt)}</strong></span><span>Letzte Aktivität: <strong>${formatDate(player.lastActivityAt)}</strong></span></div>`;
+      <div class="profile-meta"><span>Registriert: <strong>${formatDate(player.registeredAt)}</strong></span></div>`;
     renderAvatar(ui.profileContent.querySelector("[data-profile-avatar]"), player);
     ui.profileLoading.hidden = true;
     ui.profileContent.hidden = false;

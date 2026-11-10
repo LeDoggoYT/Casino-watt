@@ -82,6 +82,7 @@ async function showApp() {
   if (state.access.role === "owner") {
     ui.moderatorPanel.hidden = false;
     loadModerators();
+    startAdminSupport();
   }
 }
 

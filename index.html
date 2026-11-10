@@ -6,7 +6,7 @@
   <meta name="description" content="Watt Casino – kostenloses Blackjack mit virtuellem Spielgeld.">
   <title>Wigipeadia</title>
   <link rel="icon" href="https://www.wikipedia.org/static/favicon/wikipedia.ico" sizes="any">
-  <link rel="stylesheet" href="style.css?v=mines-1">
+  <link rel="stylesheet" href="style.css?v=support-1">
 </head>
 <body>
   <aside id="win-notifications" class="win-notifications" aria-label="Große Gewinne" aria-live="polite" aria-relevant="additions"></aside>
@@ -95,7 +95,8 @@
           <span class="avatar-add" aria-hidden="true">+</span>
         </button>
         <span class="header-user" id="header-user"></span>
-        <a class="logout-button" id="admin-link" href="admin/" hidden>Verwaltung</a>
+        <a class="logout-button" id="admin-link" href="admin/" hidden>Verwaltung <span class="notice-badge" id="admin-support-badge" hidden></span></a>
+        <button class="logout-button" type="button" data-open-view="settings">Einstellungen</button>
         <button class="logout-button" id="logout" type="button">Abmelden</button>
       </div>
     </header>
@@ -122,6 +123,7 @@
           <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--slots" aria-hidden="true">✦</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Slots</h3><button class="game-tile-button" type="button" data-open-view="slots">Spiel öffnen →</button></div></article>
           <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--loot" aria-hidden="true">◇</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Loot Boxen</h3><button class="game-tile-button" type="button" data-open-view="loot">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
           <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--mines" aria-hidden="true">✣</div><div class="game-tile-body"><span class="game-tile-status is-available">Jetzt spielen</span><h3>Mines</h3><button class="game-tile-button" type="button" data-open-view="mines">Spiel öffnen <span aria-hidden="true">→</span></button></div></article>
+          <article class="game-tile game-tile--available"><div class="game-tile-art game-tile-art--support" aria-hidden="true">✉</div><div class="game-tile-body"><span class="game-tile-status is-available">Probleme & Ideen</span><h3>Support <span class="notice-badge" id="support-badge" hidden></span></h3><p>Schilder ein Problem oder teile deine Idee mit uns.</p><button class="game-tile-button" type="button" data-open-view="support">Support öffnen <span aria-hidden="true">→</span></button></div></article>
         </div>
       </section>
     </main>
@@ -395,6 +397,71 @@
       </section>
     </main>
 
+    <main id="settings-view" class="app-view settings-view" hidden>
+      <header class="settings-heading"><h1>Einstellungen</h1><p>Dein Konto und deine Anzeige</p></header>
+      <div class="settings-grid">
+        <section class="settings-card" aria-labelledby="privacy-title">
+          <h2 id="privacy-title">Big Wins</h2>
+          <p>Deine neuen großen Gewinne erscheinen für die gewählte Zeit als „Anonym“.</p>
+          <div class="settings-options" id="privacy-options" role="group" aria-label="Anonymität für Big Wins">
+            <button type="button" data-hours="0">Aus</button><button type="button" data-hours="1">1 Std.</button><button type="button" data-hours="4">4 Std.</button><button type="button" data-hours="9">9 Std.</button>
+          </div>
+          <p class="settings-note" id="privacy-until"></p><p class="settings-message" id="privacy-message" role="status"></p>
+        </section>
+        <section class="settings-card" aria-labelledby="theme-title">
+          <h2 id="theme-title">Farbthema</h2>
+          <p>Wähle die Farben für dein Casino.</p>
+          <div class="settings-options theme-options" id="theme-options" role="group" aria-label="Farbthema">
+            <button type="button" data-theme="forest" aria-label="Wald" title="Wald"><span class="theme-swatch" aria-hidden="true"></span></button>
+            <button type="button" data-theme="ocean" aria-label="Ozean" title="Ozean"><span class="theme-swatch" aria-hidden="true"></span></button>
+            <button type="button" data-theme="violet" aria-label="Violett" title="Violett"><span class="theme-swatch" aria-hidden="true"></span></button>
+            <button type="button" data-theme="ember" aria-label="Kupfer" title="Kupfer"><span class="theme-swatch" aria-hidden="true"></span></button>
+          </div>
+          <p class="settings-message" id="theme-message" role="status"></p>
+        </section>
+        <section class="settings-card" aria-labelledby="username-title">
+          <h2 id="username-title">Benutzername</h2>
+          <form id="username-form" class="settings-form">
+            <label>Neuer Benutzername<input name="username" autocomplete="username" minlength="3" maxlength="20" pattern="[A-Za-z0-9_-]{3,20}" required></label>
+            <label>Aktuelles Passwort<input name="currentPassword" type="password" autocomplete="current-password" required></label>
+            <button type="submit">Benutzername ändern</button>
+          </form>
+          <p class="settings-message" id="username-message" role="status"></p>
+        </section>
+        <section class="settings-card" aria-labelledby="password-title">
+          <h2 id="password-title">Passwort</h2>
+          <form id="password-form" class="settings-form">
+            <label>Aktuelles Passwort<input name="currentPassword" type="password" autocomplete="current-password" required></label>
+            <label>Neues Passwort<input name="newPassword" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+            <label>Neues Passwort wiederholen<input name="confirmPassword" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+            <button type="submit">Passwort ändern</button>
+          </form>
+          <p class="settings-message" id="password-message" role="status"></p>
+        </section>
+      </div>
+    </main>
+
+    <main id="support-view" class="app-view support-view" hidden>
+      <header class="settings-heading"><h1>Support</h1><p>Probleme melden und Ideen teilen</p></header>
+      <div class="support-layout">
+        <section class="settings-card" aria-labelledby="support-new-title">
+          <h2 id="support-new-title">Neues Ticket</h2>
+          <p>Beschreibe ein Problem oder schreib uns deine Idee.</p>
+          <form id="support-form" class="settings-form">
+            <label>Titel<input name="title" minlength="3" maxlength="120" required placeholder="Worum geht es?"></label>
+            <label>Nachricht<textarea name="message" minlength="10" maxlength="5000" required placeholder="Beschreibe dein Problem oder deine Idee …"></textarea></label>
+            <button type="submit">Ticket senden</button>
+          </form>
+          <p class="settings-message" id="support-message" role="status"></p>
+        </section>
+        <section class="settings-card" aria-labelledby="support-history-title">
+          <h2 id="support-history-title">Deine Tickets</h2>
+          <div id="support-ticket-list" class="support-ticket-list"></div>
+          <p id="support-empty" class="settings-note" hidden>Noch keine Tickets vorhanden.</p>
+        </section>
+      </div>
+    </main>
+
   </div>
 
   <dialog class="profile-dialog" id="profile-dialog" aria-labelledby="profile-title">
@@ -452,10 +519,12 @@
     </form>
   </dialog>
 
-  <script src="script.js?v=chips-1" defer></script>
+  <script src="script.js?v=support-1" defer></script>
+  <script src="settings.js?v=2" defer></script>
+  <script src="support.js?v=1" defer></script>
   <script src="poker.js?v=4" defer></script>
   <script src="slots.js?v=chips-1" defer></script>
-  <script src="pinball.js?v=chips-1" defer></script>
+  <script src="pinball.js?v=center-zero-1" defer></script>
   <script src="crash.js?v=chips-1" defer></script>
   <script src="loot.js?v=notes-1" defer></script>
   <script src="market.js?v=notes-1" defer></script>

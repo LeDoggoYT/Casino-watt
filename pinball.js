@@ -51,7 +51,7 @@ function announcePinballResult(data) {
   pinballMessage.classList.add("visually-hidden");
   pinballMessage.hidden = false;
 }
-const pinballCurrentMultipliers = [53, 38, 12, 3.6, 1.5, .8, .3, .8, 1.5, 3.6, 12, 38, 53];
+const pinballCurrentMultipliers = [53, 38, 12, 3.6, 1.5, .8, 0, .8, 1.5, 3.6, 12, 38, 53];
 let pinballMultipliers = pinballCurrentMultipliers;
 let pinballWeights = null;
 let pinballConfigLoaded = false;
